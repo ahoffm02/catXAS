@@ -1,7 +1,3 @@
-<<<<<<< Updated upstream
-=======
-"""Main module."""
->>>>>>> Stashed changes
 # -*- coding: utf-8 -*-
 """
 Created on Mon Jan 11 16:38:37 2021
