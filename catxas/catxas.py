@@ -892,9 +892,12 @@ class Experiment:
         
         for i, key in zip(range(len(self.spectra.keys())), list(self.spectra.keys())):
             if i == 0:
-                normalized_df = pd.DataFrame({'Energy': self.spectra[key]['mu Sample'].energy, f'{key}': self.spectra[key]['mu Sample'].flat}, index = 'Energy')
+                normalized_df = pd.DataFrame({'Energy': self.spectra[key]['mu Sample'].energy, f'{key}': self.spectra[key]['mu Sample'].flat})
+                normalized_df.set_index('Energy', inplace = True)
             else:
-                temp_df = pd.DataFrame({'Energy': self.spectra[key]['mu Sample'].energy, f'{key}': self.spectra[key]['mu Sample'].flat}, index = 'Energy')
+                temp_df = pd.DataFrame({'Energy': self.spectra[key]['mu Sample'].energy, f'{key}': self.spectra[key]['mu Sample'].flat})
+                temp_df.set_index('Energy', inplace = True)
+                
                 normalized_df = pd.concat([normalized_df, temp_df], axis = 1)
         
         normalized_df.to_csv(output_path, sep=',', na_rep='', header=True, index=True)
