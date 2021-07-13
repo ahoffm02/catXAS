@@ -883,6 +883,29 @@ class Experiment:
         return
 
     ### Data Exporting Functions
+    def save_normalize_spectra(self, output_directory):
+        # Define filename of results:
+        fname_normspectra = self.name + '_NormalizedSpectra.csv'
+        
+        # Define where the data will be saved
+        output_path = os.path.join(output_directory, fname_normspectra)
+        
+        for i, key in zip(range(len(self.spectra.keys())), list(self.spectra.keys())):
+            if i == 0:
+                normalized_df = pd.DataFrame({'Energy': self.spectra[key]['mu Sample'].energy, f'{key}': self.spectra[key]['mu Sample'].flat})
+                normalized_df.set_index('Energy', inplace = True)
+            else:
+                temp_df = pd.DataFrame({'Energy': self.spectra[key]['mu Sample'].energy, f'{key}': self.spectra[key]['mu Sample'].flat})
+                temp_df.set_index('Energy', inplace = True)
+                
+                normalized_df = pd.concat([normalized_df, temp_df], axis = 1)
+        
+        normalized_df.to_csv(output_path, sep=',', na_rep='', header=True, index=True)
+        
+        return
+        
+        
+    
     def save_processparams(self, output_directory):
         # Define filename of results:
         fname_processparams = self.name + '_ProcessPrams.csv'
