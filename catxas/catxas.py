@@ -158,14 +158,14 @@ def create_subdir(parent_dir, string):
         
     return newdir
     
-def CXAS_Sorted(files_directory, time_stamp = True, time_format = '%m/%d/%Y %I:%M:%S %p', padded = True):
+def CXAS_Sorted(files_directory, time_stamp = True, time_line = 0, time_format = '%m/%d/%Y %I:%M:%S %p', padded = True):
     """
     files: list of paths
     time [bool]: True if data contains headers that is a time stamp
     padded [bool]: true of data contained padded zeros, doesnt matter if time = True
     """
     
-    files = glob2.glob(files_directory + '/*.txt')
+    files = glob2.glob(files_directory + '/*')
     
     path_series = pd.Series(files)
     
@@ -188,15 +188,19 @@ def CXAS_Sorted(files_directory, time_stamp = True, time_format = '%m/%d/%Y %I:%
         if time_stamp:
             # Open the file in read only mode
             with open(line, 'r') as f:
-        
+                count = 0
                 # Read all lines in the file one by one
                 for line in f:
                     # For each line, check if line contains the string
-                    if "This Scan Create Date:" in line:
-                        num_pos = re.search(r"\d", line)
-                        date = dt.strptime(line[num_pos.start():-1], time_format)
+                    if count == time_line:
+                        #print(line)
+                        date = dt.strptime(line[:-1], time_format)
+                        #print(date)
                         time_list.append(date)
                         break
+                    else:
+                        count = count + 1
+
 
 
     filename_series = pd.Series(filename_list)
@@ -525,13 +529,17 @@ class Experiment:
         self.summary['XAS Data Structure'] = xas_data_structure
         
         time_stamp = self.summary['XAS Data Structure']['time stamp']
+        time_line = self.summary['XAS Data Structure']['time on line']
         time_format = self.summary['XAS Data Structure']['time format']
         padded = self.summary['XAS Data Structure']['padded scan numbers']
         
-        self.summary['XAS Spectra Files'] = CXAS_Sorted(xas_data_directory, time_stamp = time_stamp, time_format = time_format, padded = padded)  
+        self.summary['XAS Spectra Files'] = CXAS_Sorted(xas_data_directory, time_stamp = time_stamp, time_line = time_line, time_format = time_format, padded = padded)  
         
         sep = self.summary['XAS Data Structure']['separator']
-        header = self.summary['XAS Data Structure']['header']
+        names = self.summary['XAS Data Structure']['column names']
+        skiprows = self.summary['XAS Data Structure']['skiprows']
+        eneryg_index = self.summary['XAS Data Structure']['energy column']
+        
         
         for index, row in self.summary['XAS Spectra Files'].iterrows():
             
@@ -542,7 +550,7 @@ class Experiment:
         
             self.spectra[filename]['Time'] = index
             
-            self.spectra[filename]['BL Data'] = pd.read_csv(file_path, sep = sep, header = header)
+            self.spectra[filename]['BL Data'] = pd.read_csv(file_path, names = names, sep = sep, skiprows = skiprows, index_col = False)
         
         return
      
