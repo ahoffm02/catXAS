@@ -225,6 +225,95 @@ def CXAS_Sorted(files_directory, time_stamp = True, time_line = 0, time_format =
         
     return TOS
 
+def feff_PathSummary(filename, sigma2 = 0.003, feff = 6):
+    '''
+    returns dictionary cotnaining feffpath groups and a summary of all paths 
+    sorted by scattering type frm feff input file "filename"
+
+    Parameters
+    ----------
+    filename : str
+        full path to feff inpu file "\*.inp".
+    sigma2 : float, optional
+        dampening factor. The default is 0.003.
+    feff : int, optional
+        Version of FEFF to use to calcualte scattering paths, options are either 6 or 8. The default is 6.
+
+    Returns
+    -------
+    dictX : dictionary
+        cotnaining feffpath groups and a summary of all paths sorted by
+        back scatterer or multiple scattering "ms".
+
+    '''
+    
+    # Creat subdirectory matching file name to store feff data, move feff inp file to directory
+    fname = os.path.basename(filename)
+    dirname = os.path.dirname(filename)
+    
+    feff_dir = create_subdir(dirname, fname[:-4])
+    feff_path = os.path.join(feff_dir,fname)
+    
+    copyfile(filename,feff_path)
+    
+      
+    # Run feff6l on the feff input file 
+    
+    if feff == 8:
+        larch.xafs.feff8l(feff_path)
+    elif feff == 6:
+        larch.xafs.feff6l(feff_path)
+    else:
+        pass
+        
+    
+    # List all feff paths that were created
+    feff_paths = glob2.glob(os.path.join(os.path.dirname(feff_path),'feff*.dat'))
+    
+    # Build path resutls dictionary
+    dictX = {}
+    
+    # Get all paths into result dictionary
+    for line in feff_paths:
+        gp = larch.xafs.feffpath(line)
+        larch.xafs.path2chi(gp)
+        gp.sigma2 = sigma2
+    
+        if gp.nleg > 2:
+            gp.label = 'ms'
+        else:
+            gp.label = gp.geom[1][0]
+    
+        dictX[os.path.basename(line)] = gp
+    
+    # Find Paths and extract key infomraiton
+    
+    path_bs = []
+    
+    path_reff = []
+    
+    path_degen = []
+    
+    for key in dictX.keys():
+        path_bs.append(dictX[key].label)
+        path_reff.append(dictX[key].reff)
+        path_degen.append(dictX[key].degen)
+    
+    path_summary_df = pd.DataFrame({"feff_path":filename[:-4], "Backsactterer": path_bs, "Reff": path_reff, "Degen": path_degen})
+    
+    # Split paths into dictionary for easy plotting
+    unique_paths = path_summary_df.Backsactterer.unique()
+    
+    dict1 = {}
+    
+    for name in unique_paths:
+        dict1[name] = path_summary_df[path_summary_df['Backsactterer'] == name]
+    
+    dictX["Path_Summary"] = dict1
+        
+
+    return dictX
+
 def find_nearest(array, value): 
     """
     Finds the index of the array that is closest to the requested value
@@ -318,6 +407,49 @@ def mergeindex(df1, df2, method = 'time'):
     df2 = df2.reindex(df2.index.union(df1.index)).interpolate(method='time').reindex(df1.index)
     
     return df2
+
+def plot_feff_paths(feff_dict, xmin= 0, xmax=6, xlabel = 'R (Å)', ylabel = 'Coordination Number'):
+    '''
+    quick visualizatiaon of scattering path distributions from a feff path summary
+    used in conjunction wiht dictionary outout from feff_PathSummary
+    
+    figure will be displayed in line.
+
+    Parameters
+    ----------
+    feff_dict : dictionary
+        dectionary generated from feff_PathSummary.
+    xmin : int/float, optional
+        x axis lower limit. The default is 0.
+    xmax : int/float, optional
+        x axis upper limit. The default is 6.
+    xlabel : str, optional
+        y axis label. The default is 'R (Å)'.
+    ylabel : str, optional
+        y axis labe. The default is 'Coordination Number'.
+
+    Returns
+    -------
+    matplotlib figure
+
+    '''    
+    fig1 = plt.figure(constrained_layout=True, figsize = (10,10))
+    spec1 = gridspec.GridSpec(ncols = 1, nrows = 1, figure = fig1)
+
+    f1_ax1 = fig1.add_subplot(spec1[0,0])
+    
+    path_dict = feff_dict['Path_Summary']
+    
+    for key in path_dict:
+        f1_ax1.scatter(path_dict[key].Reff.values, path_dict[key].Degen.values, label = key)
+        f1_ax1.vlines(path_dict[key].Reff.values, 0, path_dict[key].Degen.values, color = 'k')
+    
+    f1_ax1.legend(loc = 'upper left')
+    f1_ax1.set_xlim(xmin,xmax)
+    f1_ax1.set_xlabel(xlabel)
+    f1_ax1.set_ylabel(ylabel)
+    
+    return fig1
     
 def ReadLVData(filename):
     """
@@ -1384,87 +1516,6 @@ def edge2hole(edge):
     
     return hole  
 
-def feff_PathSummary(filename, sigma2 = 0.003):
-    '''
-    returns dictionary cotnaining feffpath groups and a summary of all paths 
-    sorted by scattering type frm feff input file "filename"
-
-    Parameters
-    ----------
-    filename : str
-        full path to feff inpu file "\*.inp".
-    sigma2 : float, optional
-        dampening factor. The default is 0.003.
-
-    Returns
-    -------
-    dictX : dictionary
-        cotnaining feffpath groups and a summary of all paths sorted by
-        back scatterer or multiple scattering "ms".
-
-    '''
-    
-    # Creat subdirectory matching file name to store feff data, move feff inp file to directory
-    fname = os.path.basename(filename)
-    dirname = os.path.dirname(filename)
-    
-    feff_dir = create_subdir(dirname, fname[:-4])
-    feff_path = os.path.join(feff_dir,fname)
-    
-    copyfile(filename,feff_path)
-    
-      
-    # Run feff6l on the feff input file 
-    
-    larch.xafs.feff6l(feff_path)
-    
-    # List all feff paths that were created
-    feff_paths = glob2.glob(os.path.join(os.path.dirname(feff_path),'feff*.dat'))
-    
-    # Build path resutls dictionary
-    dictX = {}
-    
-    # Get all paths into result dictionary
-    for line in feff_paths:
-        gp = larch.xafs.feffpath(line)
-        larch.xafs.path2chi(gp)
-        gp.sigma2 = sigma2
-    
-        if gp.nleg > 2:
-            gp.label = 'ms'
-        else:
-            gp.label = gp.geom[1][0]
-    
-        dictX[os.path.basename(line)] = gp
-    
-    # Find Paths and extract key infomraiton
-    
-    path_bs = []
-    
-    path_reff = []
-    
-    path_degen = []
-    
-    for key in dictX.keys():
-        path_bs.append(dictX[key].label)
-        path_reff.append(dictX[key].reff)
-        path_degen.append(dictX[key].degen)
-    
-    path_summary_df = pd.DataFrame({"feff_path":line[:-4], "Backsactterer": path_bs, "Reff": path_reff, "Degen": path_degen})
-    
-    # Split paths into dictionary for easy plotting
-    unique_paths = path_summary_df.Backsactterer.unique()
-    
-    dict1 = {}
-    
-    for name in unique_paths:
-        dict1[name] = path_summary_df[path_summary_df['Backsactterer'] == name]
-    
-    dictX["Path_Summary"] = dict1
-        
-
-    return dictX
-
 
 def Interp_Spectra(spectra_dict, offset = 5):
     '''
@@ -1572,49 +1623,6 @@ def Normalize_Spectra(spectra_dict, pre1, pre2, norm1, norm2, nnorm, make_flat):
                             nnorm = nnorm, make_flat = make_flat)
     
     return
-
-def plot_feff_paths(feff_dict, xmin= 0, xmax=6, xlabel = 'R (Å)', ylabel = 'Coordination Number'):
-    '''
-    quick visualizatiaon of scattering path distributions from a feff path summary
-    used in conjunction wiht dictionary outout from feff_PathSummary
-    
-    figure will be displayed in line.
-
-    Parameters
-    ----------
-    feff_dict : dictionary
-        dectionary generated from feff_PathSummary.
-    xmin : int/float, optional
-        x axis lower limit. The default is 0.
-    xmax : int/float, optional
-        x axis upper limit. The default is 6.
-    xlabel : str, optional
-        y axis label. The default is 'R (Å)'.
-    ylabel : str, optional
-        y axis labe. The default is 'Coordination Number'.
-
-    Returns
-    -------
-    matplotlib figure
-
-    '''    
-    fig1 = plt.figure(constrained_layout=True, figsize = (10,10))
-    spec1 = gridspec.GridSpec(ncols = 1, nrows = 1, figure = fig1)
-
-    f1_ax1 = fig1.add_subplot(spec1[0,0])
-    
-    path_dict = feff_dict['Path_Summary']
-    
-    for key in path_dict:
-        f1_ax1.scatter(path_dict[key].Reff.values, path_dict[key].Degen.values, label = key)
-        f1_ax1.vlines(path_dict[key].Reff.values, 0, path_dict[key].Degen.values, color = 'k')
-    
-    f1_ax1.legend(loc = 'upper left')
-    f1_ax1.set_xlim(xmin,xmax)
-    f1_ax1.set_xlabel(xlabel)
-    f1_ax1.set_ylabel(ylabel)
-    
-    return fig1
     
 def ReadCXAS(files, Energy_col, muSamp_N, muSamp_D, muRef_N, muRef_D, 
              muSamp_state = True, muSamp_flip = False, 
