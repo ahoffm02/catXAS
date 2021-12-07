@@ -371,24 +371,6 @@ def interp_df(df, new_index):
 
     return df_out
 
-def interpolate_spectrum(larch_group, new_energy_axis):
-    '''
-    details here
-    '''
-    temp_dict = {'mu':larch_group.mu}
-    index = larch_group.energy
-    
-    temp_df = pd.DataFrame(data = temp_dict, index = index)
-    temp_df.index.rename('Energy', inplace = True)
-    
-    interpEnergy_df = interp_df(temp_df, new_energy_axis)
-    
-    larch_group.energy = new_energy_axis
-    larch_group.mu = interpEnergy_df['mu'].values
-    
-    temp_dict.clear()
-    
-    return
 
 def mergeindex(df1, df2, method = 'time'):
     """
@@ -656,21 +638,17 @@ class Experiment:
         
     def import_spectra_data(self, xas_data_directory, xas_data_structure):
         '''
-        docstring here, list, dictionary
+        TBD
         '''
-        self.summary['XAS Data Structure'] = xas_data_structure
+        #self.summary['XAS Data Structure'] = xas_data_structure
         
-        time_stamp = self.summary['XAS Data Structure']['time stamp']
-        time_line = self.summary['XAS Data Structure']['time on line']
-        time_format = self.summary['XAS Data Structure']['time format']
-        padded = self.summary['XAS Data Structure']['padded scan numbers']
+        time_stamp = xas_data_structure['time stamp']
+        time_line = xas_data_structure['time on line']
+        time_format = xas_data_structure['time format']
+        padded = xas_data_structure['padded scan numbers']
         
         self.summary['XAS Spectra Files'] = CXAS_Sorted(xas_data_directory, time_stamp = time_stamp, time_line = time_line, time_format = time_format, padded = padded)  
         
-        sep = self.summary['XAS Data Structure']['separator']
-        names = self.summary['XAS Data Structure']['column names']
-        skiprows = self.summary['XAS Data Structure']['skiprows']
-        eneryg_index = self.summary['XAS Data Structure']['energy column']
         
         
         for index, row in self.summary['XAS Spectra Files'].iterrows():
@@ -680,16 +658,19 @@ class Experiment:
 
             self.spectra[filename] = {}
         
+            self.spectra[filename]['XAS Data Structure'] = xas_data_structure
+            
             self.spectra[filename]['Time'] = index
             
-            self.spectra[filename]['BL Data'] = pd.read_csv(file_path, names = names, sep = sep, skiprows = skiprows, index_col = False)
+            col_names = self.spectra[filename]['XAS Data Structure']['column names']
+            
+            self.spectra[filename]['BL Data'] = larch.io.read_ascii(file_path, labels=col_names)
         
         return
      
     def correlate_process_params(self):
         '''
-        update me here, looks through every dictionary in process params and tries to interpolate the parameter values
-        onto a spectra time stamp
+        TBD
         '''          
         
         self.summary['XAS Spectra Process Params'] = self.summary['XAS Spectra Files']['File Name']
@@ -704,37 +685,52 @@ class Experiment:
         
         return
     
-    def calculate_spectra(self):
+    def calculate_spectra(self, sample_spectra = True, ref_spectra = True):
         '''
         docstring TBD
         '''
-        energy_column = self.summary['XAS Data Structure']['energy column']
-        sample_numerator = self.summary['XAS Data Structure']['sample numerator']
-        sample_denominator = self.summary['XAS Data Structure']['sample denominator']
-        sample_ln = self.summary['XAS Data Structure']['sample ln']
-        sample_invert = self.summary['XAS Data Structure']['sample invert'] 
-        
-        reference_numerator = self.summary['XAS Data Structure']['reference numerator']
-        reference_denominator = self.summary['XAS Data Structure']['reference denominator']
-        reference_ln = self.summary['XAS Data Structure']['reference ln']
-        reference_invert = self.summary['XAS Data Structure']['reference invert'] 
         
         for key in self.spectra.keys():
-            photon_energy = self.spectra[key]['BL Data'][energy_column].values
-            samp_numerator = self.spectra[key]['BL Data'][sample_numerator].values
-            samp_denominator = self.spectra[key]['BL Data'][sample_denominator].values
-            samp_log=sample_ln
-            samp_flip = sample_invert
-            ref_numerator = self.spectra[key]['BL Data'][reference_numerator].values
-            ref_denominator = self.spectra[key]['BL Data'][reference_denominator].values
-            ref_log = reference_ln
-            ref_flip = reference_invert
-
-            self.spectra[key]['mu Sample'] = create_larch_spectrum(photon_energy, samp_numerator, samp_denominator, log=samp_log, flip = samp_flip)
-            self.spectra[key]['mu Reference'] = create_larch_spectrum(photon_energy, ref_numerator, ref_denominator, log=ref_log, flip = ref_flip)
+            
+            self.spectra[key]['Absorption Spectra'] = {}
+            
+            if sample_spectra:
+                # Define signals to use to calc mu sample
+                sample_numerator = self.spectra[key]['XAS Data Structure']['sample numerator']
+                sample_denominator = self.spectra[key]['XAS Data Structure']['sample denominator']
+                sample_ln = self.spectra[key]['XAS Data Structure']['sample ln']
+                sample_invert = self.spectra[key]['XAS Data Structure']['sample invert']
+                
+                # Extract data from signal columns
+                photon_energy = self.spectra[key]['BL Data'].Energy
+                samp_numerator = self.spectra[key]['BL Data'].__dict__[sample_numerator]
+                samp_denominator = self.spectra[key]['BL Data'].__dict__[sample_denominator]
+                samp_log=sample_ln
+                samp_flip = sample_invert
+                
+                # Calcualte Absorption Coefficient 
+                self.spectra[key]['Absorption Spectra']['mu Sample'] = create_larch_spectrum(photon_energy, samp_numerator, samp_denominator, log=samp_log, flip = samp_flip)
+            
+            if ref_spectra:
+                # Define signals to use to calc mu ref
+                reference_numerator = self.spectra[key]['XAS Data Structure']['reference numerator']
+                reference_denominator = self.spectra[key]['XAS Data Structure']['reference denominator']
+                reference_ln = self.spectra[key]['XAS Data Structure']['reference ln']
+                reference_invert = self.spectra[key]['XAS Data Structure']['reference invert'] 
+  
+                # Extract data from signal columns
+                photon_energy = self.spectra[key]['BL Data'].Energy
+                ref_numerator = self.spectra[key]['BL Data'].__dict__[reference_numerator]
+                ref_denominator = self.spectra[key]['BL Data'].__dict__[reference_denominator]
+                ref_log = reference_ln
+                ref_flip = reference_invert
+                
+                # Calcualte Absorption Coefficient
+                self.spectra[key]['Absorption Spectra']['mu Reference'] = create_larch_spectrum(photon_energy, ref_numerator, ref_denominator, log=ref_log, flip = ref_flip)
+                
         return    
 
-    def interpolate_spectra(self, offset = 5):
+    def interpolate_spectra(self, start, stop, step, x_axis = 'Energy', sample = 'mu Sample'):
         '''
         NEEDS UPDATING 
 
@@ -750,72 +746,149 @@ class Experiment:
         None.
 
         '''
-        # Empty lists to store energy values
-        low_limit = []
-        high_limit = []
-
-        # Find the highest low and lowest high for all energy scales in the dictionary
-        for key in self.spectra.keys():
-            low_limit.append(self.spectra[key]['mu Sample'].energy.min())
-            high_limit.append(self.spectra[key]['mu Sample'].energy.max())
-
-        print('Starting Energy Statistics:')
-        print(f'\t Minimim Starting Energy: {min(low_limit):.2f}')
-        print(f'\t Maximum Starting Energy: {max(low_limit):.2f}')
-        print(f'\t Starting Energy mean: {np.asarray(low_limit).mean():.2f} +/- {np.asarray(low_limit).std():.2f}')
-
-        print('\nEnding Energy Statistics:')
-        print(f'\t Minimim Ending Energy: {min(high_limit):.2f}')
-        print(f'\t Maximum Ending Energy: {max(high_limit):.2f}')
-        print(f'\t Ending Energy mean: {np.asarray(high_limit).mean():.2f} +/- {np.asarray(high_limit).std():.2f}')
-
-        # Find index of first spectra that are bounded by the offset
-        offset = offset
-        temp_key = next(iter(self.spectra)) 
-        min_ind = find_nearest(self.spectra[temp_key]['mu Sample'].energy, max(low_limit)+offset)[0]
-        max_ind = find_nearest(self.spectra[temp_key]['mu Sample'].energy, min(high_limit)-offset)[0]
-
-        print(f'\nEnergy Range Interpolated Between: {self.spectra[temp_key]["mu Sample"].energy[min_ind]:.2f}, {self.spectra[temp_key]["mu Sample"].energy[max_ind]:.2f}')
-        print(f'Number of Data Points: {max_ind-min_ind+1}')
-
-        # Determine the new index to interpoalte onto from the index limits above
-        CommonEnergy_index = self.spectra[temp_key]['mu Sample'].energy[min_ind:max_ind]
-
-        #Interpolate all data sets onto new axis, and build an interpoalted dictionary
-        for key in self.spectra.keys():
-            interpolate_spectrum(self.spectra[key]['mu Sample'], CommonEnergy_index)
-            interpolate_spectrum(self.spectra[key]['mu Reference'], CommonEnergy_index)
         
-        return
+        if x_axis == 'energy':
+            y = 'flat'
+        elif x_axis == 'k':
+            y = 'chi'
+        
+        # Creat list of values to interpoalte on (stop value inclusive)
+        interp_E = np.arange(start, stop+step, step)
+        
+        # Create a df to concatinate all spectra onto
+        results_df = pd.DataFrame(index = interp_E)
+        results_df.index.rename(x_axis, inplace = True)
+        
+        for key in self.spectra.keys():
+            #Write Select Data into dataframe
+            time_step = self.spectra[key]['Time'] 
+            
+            data = {x_axis:self.spectra[key]['Absorption Spectra'][sample].__dict__[x_axis],
+                time_step:self.spectra[key]['Absorption Spectra'][sample].__dict__[y]} 
+            
+            temp_df = pd.DataFrame(data)
+            temp_df = temp_df.set_index(x_axis)
+            
+            temp_interp_df = interp_df(temp_df, results_df.index)
+            
+            results_df = pd.concat([results_df, temp_interp_df], axis=1, join="inner")
+            
+        return results_df
+        
 
     
-    def calibrate_reference_spectra(self, edge_energy, energy_range=20):
+    def plot_XANES_spectra(self, emin, emax, spectra = 'mu Reference', e0_line = True):
+        # Define Figure [2 panel side by side]
+        fig1 = plt.figure(constrained_layout=True, figsize = (12,5))
+        spec1 = gridspec.GridSpec(ncols = 2, nrows = 1, figure = fig1)
+
+        f1_ax1 = fig1.add_subplot(spec1[0])
+        f1_ax2 = fig1.add_subplot(spec1[1])
+
+        #Plot Reference and Sample Spectra
+        for key in self.spectra.keys():
+            
+            x1 = self.spectra[key]['Absorption Spectra'][spectra].energy
+            y1 = self.spectra[key]['Absorption Spectra'][spectra].mu
+            
+            # Calcualte Der.
+            der = np.diff(y1) / np.diff(x1)
+            x2 = (x1[:-1] + x1[1:]) / 2
+            
+            e0mu_range = [find_nearest(x1, emin)[0], find_nearest(x1, emax)[0]]
+            e0mu_min = min(y1[e0mu_range[0]:e0mu_range[1]])
+            e0mu_max = max(y1[e0mu_range[0]:e0mu_range[1]])
+            
+            e0der_range = [find_nearest(x2, emin)[0], find_nearest(x2, emax)[0]]
+            e0der_min = min(der[e0der_range[0]:e0der_range[1]])
+            e0der_max = max(der[e0der_range[0]:e0der_range[1]])
+            
+            f1_ax1.plot(x1, y1)
+            
+            f1_ax2.plot(x2, der)
+        
+            if e0_line:
+                f1_ax1.plot([self.spectra[key]['Absorption Spectra'][spectra].e0, 
+                         self.spectra[key]['Absorption Spectra'][spectra].e0],
+                        [e0mu_min, e0mu_max],
+                        color = 'k')
+                f1_ax2.plot([self.spectra[key]['Absorption Spectra'][spectra].e0, 
+                         self.spectra[key]['Absorption Spectra'][spectra].e0],
+                        [e0der_min-0.25*abs(e0der_min), e0der_max+0.25*abs(e0der_max)],
+                        color = 'k')
+        
+        emin_ref = emin
+        emax_ref = emax
+
+        emin_samp = emin
+        emax_samp = emax
+
+        f1_ax1.set_xlim([emin_ref, emax_ref])
+        f1_ax1.set_title('Reference')
+        f1_ax1.set_xlabel('Photon Energy (eV)')
+        f1_ax1.set_ylabel('mu(E)x')
+
+        f1_ax2.set_xlim([emin_samp, emax_samp])
+        f1_ax2.set_title('dmu/dE Reference')
+        f1_ax2.set_xlabel('Photon Energy (eV)')
+        f1_ax2.set_ylabel('dmu(E)x/dE')
+    
+    
+    
+    def calibrate_reference_spectra(self, edge_energy, energy_range=20, use_mean = True):
         '''
         Calibrates the reference channel spectra based upon edge_energy provided
         sets reference energy e0 to edge_energy
         shifts sample + reference energy scales based upon average edge energy position
         '''
         e0_list = []
+        delE_list = []
         
+        # Calculate the E0 value and delE for each reference spectra
         for key in self.spectra.keys():
-            e0_list.append(calculate_spectrum_e0(self.spectra[key]['mu Reference'], edge_energy, energy_range = energy_range))        
+            e0_calc = calculate_spectrum_e0(self.spectra[key]['Absorption Spectra']['mu Reference'], edge_energy, energy_range = energy_range)
+            del_E = edge_energy - e0_calc  
+            
+            
+            self.spectra[key]['Absorption Spectra']['mu Reference'].e0 = e0_calc 
+            self.spectra[key]['Absorption Spectra']['mu Reference'].del_E = del_E
+            self.spectra[key]['Absorption Spectra']['mu Sample'].del_E = del_E
+            
+            e0_list.append(e0_calc)
+            delE_list.append(del_E)
+            
+        self.plot_XANES_spectra(edge_energy-energy_range, edge_energy+energy_range, spectra = 'mu Reference', e0_line = True)
 
-        #Shift energy scale based upon E0 values
-        del_E = edge_energy - np.asarray(e0_list).mean()
-
-        for key in self.spectra.keys():
-            self.spectra[key]['mu Reference'].e0 = edge_energy
-            self.spectra[key]['mu Reference'].energy = self.spectra[key]['mu Reference'].energy + del_E
-            self.spectra[key]['mu Sample'].energy = self.spectra[key]['mu Sample'].energy + del_E
+        
+        #Define E0 and energy calibrate Sample + Reference
+        for key, line in zip(self.spectra.keys(), e0_list):
+            self.spectra[key]['Absorption Spectra']['mu Reference'].e0 = edge_energy
+            
+            #Determine if using an average energy shift or unique to each spectra
+            if use_mean:
+                #Shift energy scale based upon average E0 values
+                del_E = edge_energy - np.asarray(e0_list).mean()
+            
+            else:
+                #Shift energy scale based upon specific E0 values from each spectra
+                del_E = self.spectra[key]['Absorption Spectra']['mu Reference'].del_E
+            
+            # Shfit energy scales for reference and sample spectra
+            self.spectra[key]['Absorption Spectra']['mu Reference'].energy = self.spectra[key]['Absorption Spectra']['mu Reference'].energy + del_E
+            self.spectra[key]['Absorption Spectra']['mu Sample'].energy = self.spectra[key]['Absorption Spectra']['mu Sample'].energy + del_E
         
         print('Reference Calibraiton Statistics:')
         print(f'Reference E0 min: {min(e0_list):.2f} eV')
         print(f'Reference E0 max: {max(e0_list):.2f} eV')
         print(f'Reference E0 mean: {np.asarray(e0_list).mean():.2f} +/- {np.asarray(e0_list).std():.2f} eV')
         print(f'Reference E0 calibrated to: {edge_energy:.2f} eV')
-        print(f'Spectra shifted by {del_E:.2f} eV\n\n')
+        if use_mean:
+            print(f'Spectra shifted by {np.asarray(delE_list).mean():.2f} eV\n\n')
+        else:
+            print(f'Spectra shifted between {np.asarray(delE_list).min():.2f}-{np.asarray(delE_list).max():.2f} eV\n\n')
+            
+        self.plot_XANES_spectra(edge_energy-energy_range, edge_energy+energy_range, spectra = 'mu Reference', e0_line = True)
 
-        return
         
     def find_sample_e0(self, edge_energy, energy_range = 20, use_mean = True):
         '''
@@ -829,11 +902,13 @@ class Experiment:
         e0_list = []
         
         for key in self.spectra.keys():
-            e0_list.append(calculate_spectrum_e0(self.spectra[key]['mu Sample'], edge_energy, energy_range = energy_range))
+            e0_list.append(calculate_spectrum_e0(self.spectra[key]['Absorption Spectra']['mu Sample'], edge_energy, energy_range = energy_range))
+            
+        self.plot_XANES_spectra(edge_energy-energy_range, edge_energy+energy_range, spectra = 'mu Sample', e0_line = True)
 
         if use_mean:
             for key in self.spectra.keys():
-                self.spectra[key]['mu Sample'].e0 = np.asarray(e0_list).mean()
+                self.spectra[key]['Absorption Spectra']['mu Sample'].e0 = np.asarray(e0_list).mean()
         
         print('Sample Calibraiton Statistics:')
         print(f'Sample E0 min: {min(e0_list):.2f} eV')
@@ -843,18 +918,20 @@ class Experiment:
             print(f'Sample E0 set to: {np.asarray(e0_list).mean():.2f} eV\n\n')
         else:
             print('Sample E0 calculated for each spectra\n\n')
+            
+        self.plot_XANES_spectra(edge_energy-energy_range, edge_energy+energy_range, spectra = 'mu Sample', e0_line = True)
         
         return
     
     def set_normalization_parameters(self, spectra_name, pre1 = -100, pre2 = -50, norm1 = 75, norm2 = 300, nnorm = 2, make_flat = True):
         
         for key in self.spectra.keys():
-            self.spectra[key][spectra_name].pre1 = pre1
-            self.spectra[key][spectra_name].pre2 = pre2
-            self.spectra[key][spectra_name].norm1 = norm1
-            self.spectra[key][spectra_name].norm2 = norm2
-            self.spectra[key][spectra_name].nnorm = nnorm
-            self.spectra[key][spectra_name].make_flat = make_flat
+            self.spectra[key]['Absorption Spectra'][spectra_name].pre1 = pre1
+            self.spectra[key]['Absorption Spectra'][spectra_name].pre2 = pre2
+            self.spectra[key]['Absorption Spectra'][spectra_name].norm1 = norm1
+            self.spectra[key]['Absorption Spectra'][spectra_name].norm2 = norm2
+            self.spectra[key]['Absorption Spectra'][spectra_name].nnorm = nnorm
+            self.spectra[key]['Absorption Spectra'][spectra_name].make_flat = make_flat
         
         return
         
@@ -870,16 +947,16 @@ class Experiment:
         '''
                 
         for key in self.spectra.keys():
-            energy = self.spectra[key][spectra_name].energy
-            mu = self.spectra[key][spectra_name].mu
-            group = self.spectra[key][spectra_name]
-            e0 = self.spectra[key][spectra_name].e0
-            pre1 = self.spectra[key][spectra_name].pre1
-            pre2 = self.spectra[key][spectra_name].pre2
-            norm1 = self.spectra[key][spectra_name].norm1
-            norm2 = self.spectra[key][spectra_name].norm2
-            nnorm = self.spectra[key][spectra_name].nnorm
-            make_flat = self.spectra[key][spectra_name].make_flat
+            energy = self.spectra[key]['Absorption Spectra'][spectra_name].energy
+            mu = self.spectra[key]['Absorption Spectra'][spectra_name].mu
+            group = self.spectra[key]['Absorption Spectra'][spectra_name]
+            e0 = self.spectra[key]['Absorption Spectra'][spectra_name].e0
+            pre1 = self.spectra[key]['Absorption Spectra'][spectra_name].pre1
+            pre2 = self.spectra[key]['Absorption Spectra'][spectra_name].pre2
+            norm1 = self.spectra[key]['Absorption Spectra'][spectra_name].norm1
+            norm2 = self.spectra[key]['Absorption Spectra'][spectra_name].norm2
+            nnorm = self.spectra[key]['Absorption Spectra'][spectra_name].nnorm
+            make_flat = self.spectra[key]['Absorption Spectra'][spectra_name].make_flat
             
             larch.xafs.pre_edge(energy, mu = mu, group = group, e0 = e0, 
                                 pre1 = pre1, pre2 = pre2, 
@@ -1090,91 +1167,75 @@ class Experiment:
         return
         
     
+        def plot_XAS_spectra(self, emin, emax, calib_line = True): ### Plotting Data - needs improvement!!!!
+            # Define Figure [2 panel side by side]
+            fig1 = plt.figure(constrained_layout=True, figsize = (12,5))
+            spec1 = gridspec.GridSpec(ncols = 1, nrows = 1, figure = fig1)
+
+            f1_ax1 = fig1.add_subplot(spec1[0])
+            f1_ax2 = fig1.add_subplot(spec1[0])
     
-    ### Plotting Data - needs improvement
-    def plot_xas_spectra(self, emin, emax, calib_line = False):
-        # Define Figure [2 panel side by side]
+            #Plot Reference and Sample Spectra
+            for key in self.spectra.keys():
+                f1_ax1.plot(self.spectra[key]['Absorption Spectra']['mu Reference'].energy, self.spectra[key]['Absorption Spectra']['mu Reference'].mu)
+                f1_ax2.plot(self.spectra[key]['Absorption Spectra']['mu Sample'].energy, self.spectra[key]['Absorption Spectra']['mu Sample'].mu)
+            
+                if calib_line:
+                    f1_ax1.plot([self.spectra[key]['Absorption Spectra']['mu Reference'].e0, 
+                             self.spectra[key]['Absorption Spectra']['mu Reference'].e0],
+                            [min(self.spectra[key]['Absorption Spectra']['mu Reference'].mu), max(self.spectra[key]['Absorption Spectra']['mu Reference'].mu)],
+                            color = 'k')
+        
+            emin_ref = emin
+            emax_ref = emax
+    
+            emin_samp = emin
+            emax_samp = emax
+    
+            f1_ax1.set_xlim([emin_ref, emax_ref])
+            f1_ax1.set_title('Reference')
+            f1_ax1.set_xlabel('Photon Energy (eV)')
+            f1_ax1.set_ylabel('mu(E)x')
+    
+            f1_ax2.set_xlim([emin_samp, emax_samp])
+            f1_ax2.set_title('Sample')
+            f1_ax2.set_xlabel('Photon Energy (eV)')
+            f1_ax2.set_ylabel('mu(E)x')
+    
+        
+    def plot_norm_spectra(self, spectra = 'mu Sample'):
+    # Define Figure [2 panel side by side]
         fig1 = plt.figure(constrained_layout=True, figsize = (12,5))
         spec1 = gridspec.GridSpec(ncols = 2, nrows = 1, figure = fig1)
 
-        f1_ax1 = fig1.add_subplot(spec1[0])
-        f1_ax2 = fig1.add_subplot(spec1[1])
-
-        #Plot Reference and Sample Spectra
-        for key in self.spectra.keys():
-            f1_ax1.plot(self.spectra[key]['mu Reference'].energy, self.spectra[key]['mu Reference'].mu)
-            f1_ax2.plot(self.spectra[key]['mu Sample'].energy, self.spectra[key]['mu Sample'].mu)
-        
-        if calib_line:
-            f1_ax1.plot([self.spectra[key]['mu Reference'].e0, 
-                         self.spectra[key]['mu Reference'].e0],
-                        [min(self.spectra[key]['mu Reference'].mu), max(self.spectra[key]['mu Reference'].mu)],
-                        color = 'k')
-        emin_ref = emin
-        emax_ref = emax
-
-        emin_samp = emin
-        emax_samp = emax
-
-        f1_ax1.set_xlim([emin_ref, emax_ref])
-        f1_ax1.set_title('Reference')
-        f1_ax1.set_xlabel('Photon Energy (eV)')
-        f1_ax1.set_ylabel('mu(E)x')
-
-        f1_ax2.set_xlim([emin_samp, emax_samp])
-        f1_ax2.set_title('Sample')
-        f1_ax2.set_xlabel('Photon Energy (eV)')
-        f1_ax2.set_ylabel('mu(E)x')
-        
-    def plot_norm_spectra(self):
-    # Define Figure [2 panel side by side]
-        fig1 = plt.figure(constrained_layout=True, figsize = (12,10))
-        spec1 = gridspec.GridSpec(ncols = 2, nrows = 2, figure = fig1)
-
         f1_ax1 = fig1.add_subplot(spec1[0,0])
         f1_ax2 = fig1.add_subplot(spec1[0,1])
-        f1_ax3 = fig1.add_subplot(spec1[1,0])
-        f1_ax4 = fig1.add_subplot(spec1[1,1])
+
 
         #Plot Reference and Sample Spectra
         for key in self.spectra.keys():
-            f1_ax1.plot(self.spectra[key]['mu Reference'].energy, self.spectra[key]['mu Reference'].flat)
-            f1_ax2.plot(self.spectra[key]['mu Sample'].energy, self.spectra[key]['mu Sample'].flat)
-            f1_ax3.plot(self.spectra[key]['mu Reference'].energy, self.spectra[key]['mu Reference'].flat)
-            f1_ax4.plot(self.spectra[key]['mu Sample'].energy, self.spectra[key]['mu Sample'].flat)
+            f1_ax1.plot(self.spectra[key]['Absorption Spectra'][spectra].energy, self.spectra[key]['Absorption Spectra'][spectra].flat)
+            f1_ax2.plot(self.spectra[key]['Absorption Spectra'][spectra].energy, self.spectra[key]['Absorption Spectra'][spectra].flat)
 
 
-        emin_ref1 = self.spectra[key]['mu Reference'].e0 - 200
-        emax_ref1 = self.spectra[key]['mu Reference'].e0 + 1000
-        emin_ref2 = self.spectra[key]['mu Reference'].e0 - 50
-        emax_ref2 = self.spectra[key]['mu Reference'].e0 + 120
 
-        emin_samp1 = self.spectra[key]['mu Sample'].e0 - 200
-        emax_samp1 = self.spectra[key]['mu Sample'].e0 + 1000
-        emin_samp2 = self.spectra[key]['mu Sample'].e0 - 50
-        emax_samp2 = self.spectra[key]['mu Sample'].e0 + 120
+        emin1 = self.spectra[key]['Absorption Spectra'][spectra].e0 - 200
+        emax1 = self.spectra[key]['Absorption Spectra'][spectra].e0 + 1000
+        emin2 = self.spectra[key]['Absorption Spectra'][spectra].e0 - 50
+        emax2 = self.spectra[key]['Absorption Spectra'][spectra].e0 + 120
 
-        f1_ax1.set_xlim([emin_ref1, emax_ref1])
-        f1_ax1.set_title('Reference')
+
+        f1_ax1.set_xlim([emin1, emax1])
+        f1_ax1.set_title(spectra)
         f1_ax1.set_xlabel('Photon Energy (eV)')
         f1_ax1.set_ylabel('Norm. mu(E)x')
 
-        f1_ax2.set_xlim([emin_samp1, emax_samp1])
-        f1_ax2.set_title('Sample')
+        f1_ax2.set_xlim([emin2, emax2])
+        f1_ax2.set_title(spectra)
         f1_ax2.set_xlabel('Photon Energy (eV)')
         f1_ax2.set_ylabel('Norm. mu(E)x')
 
 
-        f1_ax3.set_xlim([emin_ref2, emax_ref2])
-        f1_ax3.set_title('Reference')
-        f1_ax3.set_xlabel('Photon Energy (eV)')
-        f1_ax3.set_ylabel('Norm. mu(E)x')
-
-
-        f1_ax4.set_xlim([emin_samp2, emax_samp2])
-        f1_ax4.set_title('Sample')
-        f1_ax4.set_xlabel('Photon Energy (eV)')
-        f1_ax4.set_ylabel('Norm. mu(E)x')
         
     def plot_LCF_results(self, process_parameter = None):
         # Define Figure [2 panel side by side]
