@@ -640,7 +640,6 @@ class Experiment:
         '''
         TBD
         '''
-        #self.summary['XAS Data Structure'] = xas_data_structure
         
         time_stamp = xas_data_structure['time stamp']
         time_line = xas_data_structure['time on line']
@@ -730,6 +729,34 @@ class Experiment:
                 
         return    
 
+    def check_Energy_Range(self, spectra = 'mu Sample'):
+        column_names = ["E_min", "E_max", "Min_E_Step", "Max_E_Step", "Mean_E_Step", 'STD_E_Step']
+        df = pd.DataFrame(columns = column_names)
+    
+        for key in self.spectra.keys():
+            emin = min(self.spectra[key]['Absorption Spectra'][spectra].energy)
+            emax = max(self.spectra[key]['Absorption Spectra'][spectra].energy)
+        
+            temp_step = []
+            for i in range(len(self.spectra[key]['Absorption Spectra'][spectra].energy)-1):
+                temp_step.append(self.spectra[key]['Absorption Spectra'][spectra].energy[i+1]-self.spectra[key]['Absorption Spectra'][spectra].energy[i])
+        
+            min_step = min(temp_step)
+            max_step = max(temp_step)
+            mean_step = np.asarray(temp_step).mean()
+            std_step= np.asarray(temp_step).std()  
+        
+        
+            df2 = pd.DataFrame([[emin, emax, min_step, max_step, mean_step, std_step]], columns=column_names)
+        
+            df = df.append(df2, ignore_index = True)
+    
+        print(f"Variation in starting energy points between spectra [eV]: {df.E_min.min():.3f}-{df.E_min.max():.3f}")
+        print(f"Variation in ending energy points between spectra [eV]: {df.E_max.min():.3f}-{df.E_max.max():.3f}")
+        print(f"Variation in step size of energy points between spectra [eV]: {df.Mean_E_Step.min():.3f}-{df.Mean_E_Step.max():.3f}")
+    
+        return df
+    
     def interpolate_spectra(self, start, stop, step, x_axis = 'Energy', sample = 'mu Sample'):
         '''
         NEEDS UPDATING 
