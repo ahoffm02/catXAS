@@ -23,9 +23,6 @@ import numpy as np
 # Data Parsing
 from itertools import islice
 
-# Data Fitting
-from lmfit import Parameters, minimize
-
 # X-ray Science
 import larch
 import xraylib
@@ -115,7 +112,11 @@ def create_larch_spectrum(photon_energy, numerator, denominator, log=True, flip 
         docstring here, list, list, list, bool, bool
         '''
        
-        spectrum = larch.Group()
+        if name != None:
+            spectrum = larch.Group(name = name)
+        elif name == None:
+            spectrum = larch.Group()
+        
         spectrum.energy = photon_energy
         spectrum.mu = calc_mu(numerator, denominator, log=True, flip = False)
         
@@ -557,42 +558,6 @@ def ReadMSData(filename):
     return data
 
 
-
-##############################################################################
-
-                        # NON-CLASS LCF FUNCTIONS #
-                        
-##############################################################################
-
-def sum_standards(pars, basis_spectra):
-    '''
-    pars is paramters group with number of elemnts equal to the number of basis
-    basis is a df with rows = energy, columns = basis#, column names = basis#
-    data is larch group of same lenght of basis
-    '''    
-    #consider making a basis set a df not a larh group
-    model = np.zeros(len(basis_spectra.index))
-
-   
-    for amp, basis in zip(pars.keys(), list(basis_spectra.columns)):
-        model = model + pars[amp].value*basis_spectra[basis].values
-    
-    return model
-
-# Define function to calcualte residuals
-def resid(pars, data, basis):
-    '''
-    pars is paramters group
-    data is a list
-    basis is a df with rows = energy, columns = basis#, column names = basis#
-    '''
-    
-    #consider simplifying for lsits or dfs not larch groups
-    residual = (data - sum_standards(pars, basis))#/data.eps
-    
-    return residual
-
-
 ##############################################################################
 
             # EXPERIMENTAL CLASS - IN-SITU XAS PROCESSING #
@@ -684,6 +649,14 @@ class Experiment:
         
         return
     
+    def organize_RawData(self):
+        for key in self.spectra.keys():
+            values, index = np.unique(self.spectra[key]['BL Data'].Energy, return_index=True)
+            for line in self.spectra[key]['BL Data'].array_labels:
+                self.spectra[key]['BL Data'].__dict__[line] = self.spectra[key]['BL Data'].__dict__[line][index]
+                
+        print('Duplicate data points removed')
+    
     def calculate_spectra(self, sample_spectra = True, ref_spectra = True):
         '''
         docstring TBD
@@ -708,7 +681,7 @@ class Experiment:
                 samp_flip = sample_invert
                 
                 # Calcualte Absorption Coefficient 
-                self.spectra[key]['Absorption Spectra']['mu Sample'] = create_larch_spectrum(photon_energy, samp_numerator, samp_denominator, log=samp_log, flip = samp_flip)
+                self.spectra[key]['Absorption Spectra']['mu Sample'] = create_larch_spectrum(photon_energy, samp_numerator, samp_denominator, log=samp_log, flip = samp_flip, name = key)
             
             if ref_spectra:
                 # Define signals to use to calc mu ref
@@ -725,7 +698,7 @@ class Experiment:
                 ref_flip = reference_invert
                 
                 # Calcualte Absorption Coefficient
-                self.spectra[key]['Absorption Spectra']['mu Reference'] = create_larch_spectrum(photon_energy, ref_numerator, ref_denominator, log=ref_log, flip = ref_flip)
+                self.spectra[key]['Absorption Spectra']['mu Reference'] = create_larch_spectrum(photon_energy, ref_numerator, ref_denominator, log=ref_log, flip = ref_flip, name = key+'_ref')
                 
         return    
 
@@ -992,104 +965,63 @@ class Experiment:
 
         return
     
-    
+  
        
     ### LCF related functions
-    def load_lcf_basis(self, basis_list):
+    def load_lcf_basis(self, basis_list, fit_name):
         '''
-        update later basis_must be a list of larch groups wiht nornalized spectra
+        update later basis_must be a list of larch groups with nornalized spectra
         '''
+        self.analysis['LCF'][fit_name] = {}
         
         # Loads in the basis spectra
-        self.analysis['LCF']['basis spectra'] = {}   
-        
-        for i in range(len(basis_list)):
-            self.analysis['LCF']['basis spectra']['basis'+  str(i +1)] = basis_list[i]
-        
-        # Creates a paramters space for each spectra in self.spectra
-        total_spectra = len(self.spectra.keys()) 
-        energy_range = total_spectra*[None]
-        parameters = total_spectra*[None]
-        fitting_parameters = total_spectra*[None]
-        names = list(self.spectra.keys())
-        
-        self.analysis['LCF']['fitting parameters'] = pd.DataFrame({'names': names,'energy range':energy_range, 'lcf parameters':parameters, 'lcf report':fitting_parameters})
-        self.analysis['LCF']['fitting parameters'].set_index('names', inplace = True)
-        
-        for ind in self.analysis['LCF']['fitting parameters'].index:
-            
-            self.analysis['LCF']['fitting parameters']['lcf parameters'][ind] = Parameters()
-            
-            for x in range(len(self.analysis['LCF']['basis spectra'].keys())):
-                 
-                 self.analysis['LCF']['fitting parameters']['lcf parameters'][ind].add(f'amp{x+1}', value = 1/len(basis_list), min = 0, max = 1, vary = True)
+        self.analysis['LCF'][fit_name]['basis spectra'] = basis_list   
         
         return    
     
-    def fit_LCF(self, energy_range):
+    def fit_LCF(self, fit_name, emin, emax, weights=None, minvals=0, maxvals=1, arrayname='norm', sum_to_one=False):
         '''
-        energy_range = [emin, emax]
-        '''
-        for ind in self.analysis['LCF']['fitting parameters'].index:
-            self.analysis['LCF']['fitting parameters']['energy range'][ind] = energy_range
+        TBD
 
+        Parameters
+        ----------
+        xmin : TYPE
+            DESCRIPTION.
+        xmax : TYPE
+            DESCRIPTION.
+        weights : TYPE, optional
+            DESCRIPTION. The default is None.
+        minvals : TYPE, optional
+            DESCRIPTION. The default is 0.
+        maxvals : TYPE, optional
+            DESCRIPTION. The default is 1.
+        arrayname : TYPE, optional
+            DESCRIPTION. The default is 'norm'.
+        sum_to_one : TYPE, optional
+            DESCRIPTION. The default is False.
+
+        Returns
+        -------
+        None.
+
+        '''
+        
+        minvals = [minvals]*len(self.analysis['LCF'][fit_name]['basis spectra'])
+        maxvals = [maxvals]*len(self.analysis['LCF'][fit_name]['basis spectra'])
+        
+        self.analysis['LCF'][fit_name]['Results'] = {}
+        
         for key in self.spectra.keys():
-
-            i1 = find_nearest(self.spectra[key]['mu Sample'].energy, energy_range[0])[0]
-            i2 = find_nearest(self.spectra[key]['mu Sample'].energy, energy_range[1])[0]
-
-            data_to_fit = self.spectra[key]['mu Sample'].flat[i1:i2+1]
-            
-            basis_dict = {}
-
-
-            for key2 in self.analysis['LCF']['basis spectra'].keys():
-                basis_dict[key2] = self.analysis['LCF']['basis spectra'][key2].flat[i1:i2+1]
-
-            basis_data = pd.DataFrame(basis_dict)
-            
-
-            result = minimize(resid, self.analysis['LCF']['fitting parameters']['lcf parameters'][key],
-                              args=(data_to_fit, basis_data,))
-
-            self.analysis['LCF']['fitting parameters']['lcf report'][key] = result
-            
-
-            # Add fit summary to each spectra file 'LCF Results'
-            energy = self.spectra[key]['mu Sample'].energy
-            spectra = self.spectra[key]['mu Sample'].flat
-            
-            LCF_result_dict = {'Energy': energy, 'Spectra': spectra}
-            
-            basis_data_dict = {}
-            
-            for amp, key2 in zip(self.analysis['LCF']['fitting parameters']['lcf report'][key].params, self.analysis['LCF']['basis spectra'].keys()):
-                weighting_fraction = self.analysis['LCF']['fitting parameters']['lcf report'][key].params[amp].value
-                basis_name = self.analysis['LCF']['basis spectra'][key2].name
-                basis_data_dict[key2 + '_'+ basis_name] = self.analysis['LCF']['basis spectra'][key2].flat
-                LCF_result_dict[key2 + '_'+ basis_name] = weighting_fraction*self.analysis['LCF']['basis spectra'][key2].flat
-
-            basis_data = pd.DataFrame(basis_data_dict) 
-        
-            fit = sum_standards(self.analysis['LCF']['fitting parameters']['lcf report'][key].params, basis_data)
-            LCF_result_dict['Fit'] = fit
-        
-            residuals = resid(self.analysis['LCF']['fitting parameters']['lcf report'][key].params,
-                  self.spectra[key]['mu Sample'].flat, basis_data)
-        
-            LCF_result_dict['Residuals'] = residuals
-
-            lcf_result_df = pd.DataFrame(LCF_result_dict)
-
-            lcf_result_df.set_index('Energy', inplace = True)
-            
-            self.spectra[key]['LCF Results'] = lcf_result_df
+            self.analysis['LCF'][fit_name]['Results'][key] = larch.math.lincombo_fit(self.spectra[key]['Absorption Spectra']['mu Sample'],
+                            self.analysis['LCF'][fit_name]['basis spectra'], weights=weights, 
+                            minvals=minvals, maxvals=maxvals, arrayname=arrayname, 
+                            xmin=emin, xmax=emax, sum_to_one=sum_to_one)
         
         return
    
-    def lcf_report(self):
+    def lcf_report(self, fit_name):
     
-        no_basis = len(self.analysis['LCF']['basis spectra'].keys())
+        no_basis = len(self.analysis['LCF'][fit_name]['basis spectra'])
 
         fit_param = {'Name': [],
                     'Chi2': [],
@@ -1099,29 +1031,26 @@ class Experiment:
         for x in range(no_basis):
             fit_param[f'Amp{x+1}'] = []
             fit_param[f'Amp{x+1}-stdev'] = []
-            
+        
         fit_param['Sum Amp'] = []
-            
+                
+        for key in self.analysis['LCF'][fit_name]['Results'].keys():
+            fit_param['Name'].append(key)
+            fit_param['Chi2'].append(self.analysis['LCF'][fit_name]['Results'][key].chisqr)
+            fit_param['RedChi2'].append(self.analysis['LCF'][fit_name]['Results'][key].redchi)
+            fit_param['Variables'].append(self.analysis['LCF'][fit_name]['Results'][key].result.__dict__['nvarys'])
 
-        for ind in self.analysis['LCF']['fitting parameters']['lcf report'].index:
-            fit_param['Name'].append(ind)
-            fit_param['Chi2'].append(self.analysis['LCF']['fitting parameters']['lcf report'][ind].chisqr)
-            fit_param['RedChi2'].append(self.analysis['LCF']['fitting parameters']['lcf report'][ind].redchi)
-            fit_param['Variables'].append(self.analysis['LCF']['fitting parameters']['lcf report'][ind].nvarys)
+            for x, key2 in zip(list(range(no_basis)), self.analysis['LCF'][fit_name]['Results'][key].result.params.keys()):       
+                fit_param[f'Amp{x+1}'].append(self.analysis['LCF'][fit_name]['Results'][key].result.params[key2].value)
+                fit_param[f'Amp{x+1}-stdev'].append(self.analysis['LCF'][fit_name]['Results'][key].result.params[key2].stderr)
 
-                    
-            sum_amp = 0
             
-            for x in range(no_basis):
-                fit_param[f'Amp{x+1}'].append(self.analysis['LCF']['fitting parameters']['lcf report'][ind].params[f'amp{x+1}'].value)
-                fit_param[f'Amp{x+1}-stdev'].append(self.analysis['LCF']['fitting parameters']['lcf report'][ind].params[f'amp{x+1}'].stderr)
-                sum_amp = sum_amp + self.analysis['LCF']['fitting parameters']['lcf report'][ind].params[f'amp{x+1}'].value
+            fit_param['Sum Amp'].append(self.analysis['LCF'][fit_name]['Results'][key].result.params['total'].value)
             
-            fit_param['Sum Amp'].append(sum_amp)
                 
         LCF_df = pd.DataFrame(fit_param)
 
-        self.analysis['LCF']['Fit Summary'] = LCF_df
+        self.analysis['LCF'][fit_name]['Fit Summary'] = LCF_df
     
     
         return
@@ -1194,40 +1123,40 @@ class Experiment:
         return
         
     
-        def plot_XAS_spectra(self, emin, emax, calib_line = True): ### Plotting Data - needs improvement!!!!
-            # Define Figure [2 panel side by side]
-            fig1 = plt.figure(constrained_layout=True, figsize = (12,5))
-            spec1 = gridspec.GridSpec(ncols = 1, nrows = 1, figure = fig1)
+    def plot_XAS_spectra(self, emin, emax, calib_line = True): ### Plotting Data - needs improvement!!!!
+        # Define Figure [2 panel side by side]
+        fig1 = plt.figure(constrained_layout=True, figsize = (12,5))
+        spec1 = gridspec.GridSpec(ncols = 1, nrows = 1, figure = fig1)
 
-            f1_ax1 = fig1.add_subplot(spec1[0])
-            f1_ax2 = fig1.add_subplot(spec1[0])
-    
-            #Plot Reference and Sample Spectra
-            for key in self.spectra.keys():
-                f1_ax1.plot(self.spectra[key]['Absorption Spectra']['mu Reference'].energy, self.spectra[key]['Absorption Spectra']['mu Reference'].mu)
-                f1_ax2.plot(self.spectra[key]['Absorption Spectra']['mu Sample'].energy, self.spectra[key]['Absorption Spectra']['mu Sample'].mu)
-            
-                if calib_line:
-                    f1_ax1.plot([self.spectra[key]['Absorption Spectra']['mu Reference'].e0, 
-                             self.spectra[key]['Absorption Spectra']['mu Reference'].e0],
-                            [min(self.spectra[key]['Absorption Spectra']['mu Reference'].mu), max(self.spectra[key]['Absorption Spectra']['mu Reference'].mu)],
-                            color = 'k')
+        f1_ax1 = fig1.add_subplot(spec1[0])
+        f1_ax2 = fig1.add_subplot(spec1[0])
+
+        #Plot Reference and Sample Spectra
+        for key in self.spectra.keys():
+            f1_ax1.plot(self.spectra[key]['Absorption Spectra']['mu Reference'].energy, self.spectra[key]['Absorption Spectra']['mu Reference'].mu)
+            f1_ax2.plot(self.spectra[key]['Absorption Spectra']['mu Sample'].energy, self.spectra[key]['Absorption Spectra']['mu Sample'].mu)
         
-            emin_ref = emin
-            emax_ref = emax
+            if calib_line:
+                f1_ax1.plot([self.spectra[key]['Absorption Spectra']['mu Reference'].e0, 
+                         self.spectra[key]['Absorption Spectra']['mu Reference'].e0],
+                        [min(self.spectra[key]['Absorption Spectra']['mu Reference'].mu), max(self.spectra[key]['Absorption Spectra']['mu Reference'].mu)],
+                        color = 'k')
     
-            emin_samp = emin
-            emax_samp = emax
-    
-            f1_ax1.set_xlim([emin_ref, emax_ref])
-            f1_ax1.set_title('Reference')
-            f1_ax1.set_xlabel('Photon Energy (eV)')
-            f1_ax1.set_ylabel('mu(E)x')
-    
-            f1_ax2.set_xlim([emin_samp, emax_samp])
-            f1_ax2.set_title('Sample')
-            f1_ax2.set_xlabel('Photon Energy (eV)')
-            f1_ax2.set_ylabel('mu(E)x')
+        emin_ref = emin
+        emax_ref = emax
+
+        emin_samp = emin
+        emax_samp = emax
+
+        f1_ax1.set_xlim([emin_ref, emax_ref])
+        f1_ax1.set_title('Reference')
+        f1_ax1.set_xlabel('Photon Energy (eV)')
+        f1_ax1.set_ylabel('mu(E)x')
+
+        f1_ax2.set_xlim([emin_samp, emax_samp])
+        f1_ax2.set_title('Sample')
+        f1_ax2.set_xlabel('Photon Energy (eV)')
+        f1_ax2.set_ylabel('mu(E)x')
     
         
     def plot_norm_spectra(self, spectra = 'mu Sample'):
@@ -1264,7 +1193,7 @@ class Experiment:
 
 
         
-    def plot_LCF_results(self, process_parameter = None):
+    def plot_LCF_results(self, fit_name, process_parameter = None):
         # Define Figure [2 panel side by side]
         fig1 = plt.figure(constrained_layout=True, figsize = (10,10))
         spec1 = gridspec.GridSpec(ncols = 6, nrows = 10, figure = fig1)
@@ -1272,12 +1201,17 @@ class Experiment:
         f1_ax1 = fig1.add_subplot(spec1[0:7,0:])
         f1_ax2 = fig1.add_subplot(spec1[7:,0:], sharex=f1_ax1)
 
-        for col in self.analysis['LCF']['Fit Summary'].columns:
+        for col in self.analysis['LCF'][fit_name]['Fit Summary'].columns:
             if not 'stdev' in col:
-                if 'Amp' in col:
-                    f1_ax1.plot(self.analysis['LCF']['Fit Summary'][col], label = col)
+                if 'Amp' in col and not 'Sum' in col:
+                    f1_ax1.errorbar(self.analysis['LCF'][fit_name]['Fit Summary'][col].index, 
+                                    self.analysis['LCF'][fit_name]['Fit Summary'][col], 
+                                    yerr = self.analysis['LCF'][fit_name]['Fit Summary'][col+'-stdev'],
+                                    label = col)
+                elif 'Sum' in col:
+                    f1_ax1.plot(self.analysis['LCF'][fit_name]['Fit Summary'][col], label = col)
 
-        f1_ax2.plot(self.analysis['LCF']['Fit Summary']['RedChi2'], color = 'k')
+        f1_ax2.plot(self.analysis['LCF'][fit_name]['Fit Summary']['RedChi2'], color = 'k')
 
 
         if process_parameter != None:

@@ -1,0 +1,70 @@
+My Experiment (Experiment Class)
+	|
+	|
+	|--> name (str)
+	|
+	|
+	|--> process_params (dict)
+	|		|
+	|		|
+	|		|--> MS Data (pandas DataFrame)
+	|		|
+	|		|
+	|		|--> LV Data (pandas DataFrame)
+	|
+	|
+	|--> spectra (dict)
+	|		|
+	|		|
+	|		|--> spectra file (dict)
+	|				|
+	|				|
+	|				|--> XAS Data Structure (dict)
+	|				|
+	|				|
+	|				|--> Time (datetime)
+	|				|
+	|				|
+	|				|--> BL Data (larch group)
+	|				|
+	|				|
+	|				|--> Absorption Spectra (dict of larch groups)
+	|
+	|--> analysis (dict)
+	|		|
+	|		|
+	|		|--> LCF (dict)
+	|		|		|
+	|		|		|
+	|		|		|--> Fit (dict)
+	|		|				|
+	|		|				|
+	|		|				|--> basis spectra (list of larch groups)
+	|		|				|
+	|		|				|
+	|		|				|--> Results (dict)
+	|		|				|		|
+	|		|				|		|
+	|		|				|		|--> fit spectra file (larch group containing lmfit results)
+	|		|				|
+	|		|				|
+	|		|				|--> Fit Summary (pandas DataFrame)
+	|		|
+	|		|
+	|		|--> PCA (dict - not incorporated yet)
+	|
+	|
+	|--> summary (dict)
+			|
+			|
+			|--> XAS Spectra Files (pandas DataFrame)
+			|
+			|
+			|--> MS Filename (str)
+			|
+			|
+			|--> LV Filename (str)
+			|
+			|
+			|--> XAS Spectra Process Params (pandas DataFrame)
+	
