@@ -28,7 +28,13 @@ My Experiment (Experiment Class)
 	|				|--> BL Data (larch group)
 	|				|
 	|				|
-	|				|--> Absorption Spectra (dict of larch groups)
+	|				|--> Absorption Spectra (dict)
+	|								|
+	|								|
+	|								|--> mu Sample (larch group)
+	|								|
+	|								|
+	|								|--> mu Reference (larch group)
 	|
 	|--> analysis (dict)
 	|		|
@@ -42,7 +48,7 @@ My Experiment (Experiment Class)
 	|		|				|--> basis spectra (list of larch groups)
 	|		|				|
 	|		|				|
-	|		|				|--> Results (dict)
+	|		|				|--> Results (dict of larch groups)
 	|		|				|		|
 	|		|				|		|
 	|		|				|		|--> fit spectra file (larch group containing lmfit results)

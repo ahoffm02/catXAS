@@ -186,21 +186,20 @@ def CXAS_Sorted(files_directory, time_stamp = True, time_line = 0, time_format =
             
         padded_list.append(filename)
         
-        if time_stamp:
-            # Open the file in read only mode
-            with open(line, 'r') as f:
-                count = 0
-                # Read all lines in the file one by one
-                for line in f:
-                    # For each line, check if line contains the string
-                    if count == time_line:
-                        #print(line)
-                        date = dt.strptime(line[:-1], time_format)
-                        #print(date)
-                        time_list.append(date)
-                        break
-                    else:
-                        count = count + 1
+        # Open the file in read only mode
+        with open(line, 'r') as f:
+            count = 0
+            # Read all lines in the file one by one
+            for line in f:
+                # For each line, check if line contains the string
+                if count == time_line:
+                    #print(line)
+                    date = dt.strptime(line[:-1], time_format)
+                    #print(date)
+                    time_list.append(date)
+                    break
+                else:
+                    count = count + 1
 
 
 
@@ -218,7 +217,14 @@ def CXAS_Sorted(files_directory, time_stamp = True, time_line = 0, time_format =
         TOS.set_index('Time', inplace = True)
     
     else:
-        temp_dict = {'File Name': filename_series, 'Padded Name': padded_series, 'Path': path_series}
+        time_series = pd.Series(time_list)
+        
+        temp_dict = {
+            'Time': time_series,
+            'File Name': filename_series,
+            'Padded Name': padded_series,
+            'Path': path_series
+            }
         
         TOS = pd.DataFrame(temp_dict)
         TOS.sort_values(by = 'Padded Name', ignore_index = True, inplace = True)
@@ -617,8 +623,8 @@ class Experiment:
         
         for index, row in self.summary['XAS Spectra Files'].iterrows():
             
-            filename = row[0]
-            file_path = row[2]
+            filename = row['File Name']
+            file_path = row['Path']
 
             self.spectra[filename] = {}
         
@@ -649,13 +655,108 @@ class Experiment:
         
         return
     
-    def organize_RawData(self):
+    def summarize_file_lengths(self, deviation = 5):
+        column_names = ["Filename", "Data Points"]
+        df = pd.DataFrame(columns = column_names)
+        
         for key in self.spectra.keys():
-            values, index = np.unique(self.spectra[key]['BL Data'].Energy, return_index=True)
-            for line in self.spectra[key]['BL Data'].array_labels:
-                self.spectra[key]['BL Data'].__dict__[line] = self.spectra[key]['BL Data'].__dict__[line][index]
-                
-        print('Duplicate data points removed')
+            df2 = {"Filename": key, "Data Points": len(self.spectra[key]['BL Data'].Energy)}
+            df = df.append(df2, ignore_index = True)
+            
+        df2 = df.sort_values('Data Points', axis=0, ascending=True)
+        mean_dpts = df['Data Points'].mean()
+        stdev_dpts = df['Data Points'].std()
+        threshold = mean_dpts-deviation*stdev_dpts
+        
+        print(f'Range of Data Points per Raw Spectrum: {df["Data Points"].min()}-{df["Data Points"].max()}')
+        print(f'Average Number of Data Points per Raw Spectrum: {df["Data Points"].mean()}')
+        print(f'Standard Deviation of Number of Data Points per Raw Spectrum: {df["Data Points"].std()}')
+        print('\n\n')
+        print(f'Spectra with datapoints less than {deviation} standard deviations from mean:')
+        print('\n\n')
+        print(df2[df['Data Points']<threshold])
+        
+        return df, mean_dpts, stdev_dpts  
+            
+    def remove_bad_spectra(self, spectra_list):
+        '''
+        Removes spectra files contained in spectra_list from (1) self.spectra and (2) lines form self.summary['XAS Spectra Files']
+        Adds a list in self.summary to indicate spectra removed in this step.
+        
+        Parameters
+        ----------
+        spectra_list : LIST
+            List of filenames to remove from experiment class
+
+        Returns
+        -------
+        None.
+
+        '''
+    
+        for line in spectra_list:
+            # Removes the spectra from the *.spectra dictionary
+            self.spectra.pop(line, None)
+            
+            # Removes the spectra from the 'XAS Spectra Files' dataframe
+            self.summary['XAS Spectra Files'] = self.summary['XAS Spectra Files'][self.summary['XAS Spectra Files']['File Name'] != line]        
+    
+        if 'Spectra Removed' in self.summary:
+            self.summary['Spectra Removed'].append(spectra_list)
+        else:
+            self.summary['Spectra Removed'] = spectra_list
+    
+    
+    def organize_RawData(self, remove_duplicates = True, remove_nan_inf = True, remove_zeros = True):
+        
+        if remove_duplicates:
+            E_pts = []
+            for key in self.spectra.keys():
+                Temp_E_Pts1 = len(self.spectra[key]['BL Data'].Energy)
+                values, index = np.unique(self.spectra[key]['BL Data'].Energy, return_index=True)
+                for line in self.spectra[key]['BL Data'].array_labels:
+                    self.spectra[key]['BL Data'].__dict__[line] = self.spectra[key]['BL Data'].__dict__[line][index]
+                Temp_E_Pts2 = len(self.spectra[key]['BL Data'].Energy)
+                E_pts.append([Temp_E_Pts1, Temp_E_Pts2])
+                    
+            E_pts_arr = np.asarray(E_pts)
+            print('Duplicate data points removed')
+            print(f'Range of data points per raw spectra: {E_pts_arr[:,0].min()}-{E_pts_arr[:,0].max()}')
+            print(f'Range of data points per duplicates removed spectra: {E_pts_arr[:,1].min()}-{E_pts_arr[:,1].max()}')
+
+
+        if remove_nan_inf:
+            naninf_pts = []
+            for key in self.spectra.keys():
+                Temp_naninf_Pts1 = len(self.spectra[key]['BL Data'].Energy)
+                for line in self.spectra[key]['BL Data'].array_labels:
+                    f = self.spectra[key]['BL Data'].__dict__[line]
+                    index = [i for i, arr in enumerate(f) if not np.isfinite(arr).all()]
+                    for line in self.spectra[key]['BL Data'].array_labels:
+                        self.spectra[key]['BL Data'].__dict__[line] = self.spectra[key]['BL Data'].__dict__[line][index]
+                    Temp_naninf_Pts2 = len(self.spectra[key]['BL Data'].Energy)
+                naninf_pts.append([Temp_naninf_Pts1, Temp_naninf_Pts2])
+            
+            naninf_pts_arr = np.asarray(naninf_pts)
+            print('Zero data points removed')
+            print(f'Range of data points per pre-zero spectra: {naninf_pts_arr[:,0].min()}-{naninf_pts_arr[:,0].max()}')
+            print(f'Range of data points per zero removed spectra: {naninf_pts_arr[:,1].min()}-{naninf_pts_arr[:,1].max()}')
+        
+        if remove_zeros:
+            Z_pts = []
+            for key in self.spectra.keys():
+                Temp_Z_Pts1 = len(self.spectra[key]['BL Data'].Energy)
+                for line in self.spectra[key]['BL Data'].array_labels:
+                    index = np.nonzero(self.spectra[key]['BL Data'].__dict__[line])
+                    for line in self.spectra[key]['BL Data'].array_labels:
+                        self.spectra[key]['BL Data'].__dict__[line] = self.spectra[key]['BL Data'].__dict__[line][index]
+                    Temp_Z_Pts2 = len(self.spectra[key]['BL Data'].Energy)
+                Z_pts.append([Temp_Z_Pts1, Temp_Z_Pts2])
+            
+            Z_pts_arr = np.asarray(Z_pts)
+            print('Zero data points removed')
+            print(f'Range of data points per pre-zero spectra: {Z_pts_arr[:,0].min()}-{Z_pts_arr[:,0].max()}')
+            print(f'Range of data points per zero removed spectra: {Z_pts_arr[:,1].min()}-{Z_pts_arr[:,1].max()}')
     
     def calculate_spectra(self, sample_spectra = True, ref_spectra = True):
         '''
@@ -1222,6 +1323,7 @@ class Experiment:
         
         f1_ax1.legend(loc='center right')
         f1_ax1.set_ylabel('Fraction of Basis')
+        f1_ax1.set_ylim([-0.1, 1.5])
         f1_ax2.set_xlabel('Spectra')
         f1_ax2.set_ylabel('Reduced Chi^2')
         
