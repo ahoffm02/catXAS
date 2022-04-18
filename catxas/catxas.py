@@ -14,6 +14,7 @@ from shutil import copyfile
 
 
 # Timestamps
+import datetime
 from datetime import datetime as dt
 
 # Data organization
@@ -125,7 +126,7 @@ def create_larch_spectrum(photon_energy, numerator, denominator, log=True, flip 
         
         return spectrum
 
-def create_subdir(parent_dir, string):
+def create_subdir(parent_dir, sub_dir):
     """
     Fuction to make a subdirectory in specified directory. Checks to see if 
     the directory already exists, and eitehr makes it or doesn't. Updates
@@ -133,9 +134,9 @@ def create_subdir(parent_dir, string):
     
     Parameters
     ----------
-    parent_dir : str
+    parent_dir : STR
         directory to place subdirector
-    string : str
+    sub_dir : STR
         name of subdirectory
 
     Returns
@@ -145,7 +146,7 @@ def create_subdir(parent_dir, string):
 
     """
 
-    newdir = os.path.join(parent_dir, string)
+    newdir = os.path.join(parent_dir, sub_dir)
 
     try:
         os.mkdir(newdir)
@@ -159,14 +160,39 @@ def create_subdir(parent_dir, string):
         
     return newdir
     
-def CXAS_Sorted(files_directory, time_stamp = True, time_line = 0, time_format = '%m/%d/%Y %I:%M:%S %p', padded = True):
-    """
-    files: list of paths
-    time [bool]: True if data contains headers that is a time stamp
-    padded [bool]: true of data contained padded zeros, doesnt matter if time = True
-    """
+def CXAS_Sorted(files_directory, time_stamp = True, time_line = 0, time_format = '%m/%d/%Y %I:%M:%S %p', padded = True, is_QEXAFS = False):
+    '''
+    ### GENERAL STATEMENT HERE ###
+
+    Parameters
+    ----------
+    files_directory : STR
+        PATH TO DIRECTORY CONTAINING ONLY XAS SPECTRA FILES.
+    time_stamp : BOOL, optional
+        TRUE/FALSE STATEMENT IF THE XAS SPECTRA FILES CONTAIN A TIMESTAMP IN 
+        THE HEADER. The default is True.
+    time_line : INT, optional
+        LINE IN HEADER WHICH CONTAINTS THE TIMESTAMP WHEN THE XAS SPECTRA 
+        WAS COLLECTED, ONLY USED WHEN time_stamp = True. The default is 0.
+    time_format : STR, optional
+        FORMAT OF THE LINE IN THE HEADER CONTAINING THE TIMESTAMP, FOLLOWS 
+        DATETIME FORMAT STYLE, ONLY USED WHEN time_stamp = True. 
+        The default is '%m/%d/%Y %I:%M:%S %p'.
+    padded : BOOL, optional
+        TRUE/FALSE STATEMENT IF THE XAS SPECTRA FILENAMES IN files_directory
+        CONTAIN SPECTRA NUMBERS THAT ARE PADDED WITH ZEROS TO KEEP A CONSTANT
+        CHARACTER COUNT. The default is True.
+
+    Returns
+    -------
+    TOS : TYPE
+        DESCRIPTION.
+
+    '''
     
+    # Use glob2 to get a list of all files in files_directory
     files = glob2.glob(files_directory + '/*')
+    
     
     path_series = pd.Series(files)
     
@@ -192,25 +218,42 @@ def CXAS_Sorted(files_directory, time_stamp = True, time_line = 0, time_format =
             # Read all lines in the file one by one
             for line in f:
                 # For each line, check if line contains the string
-                if count == time_line:
-                    #print(line)
-                    date = dt.strptime(line[:-1], time_format)
-                    #print(date)
-                    time_list.append(date)
-                    break
-                else:
-                    count = count + 1
-
-
+                if not is_QEXAFS:
+                    if count == time_line:
+                        #print(line)
+                        date = dt.strptime(line, time_format)
+                        #print(date)
+                        time_list.append(date)
+                        break
+                    else:
+                        count = count + 1
+                elif is_QEXAFS:
+                    if count == time_line:
+                        #print(line)
+                        date = dt.strptime(line, time_format)
+                        #print(date)
+                        #time_list.append(date)
+                    if not line.startswith('#'):
+                        micros = int(line.split(sep = '\t')[-2])
+                        
+                        micros_to_date = datetime.timedelta(microseconds = micros)
+                        
+                        scan_time = date + micros_to_date
+                        
+                        time_list.append(scan_time)
+                        
+                        break
+                    else:
+                        count = count + 1
 
     filename_series = pd.Series(filename_list)
     padded_series = pd.Series(padded_list)
     
-    
     if time_stamp:
         time_series = pd.Series(time_list)
+        elapsed_time = time_series - time_series[0]
         
-        temp_dict = {'Time': time_series, 'File Name': filename_series, 'Padded Name': padded_series, 'Path': path_series}
+        temp_dict = {'Time': time_series, 'TOS [s]': elapsed_time.dt.total_seconds(), 'File Name': filename_series, 'Padded Name': padded_series, 'Path': path_series}
         
         TOS = pd.DataFrame(temp_dict)
         TOS.sort_values(by = 'Time', ignore_index = True, inplace = True)
@@ -460,6 +503,17 @@ def ReadLVData(filename):
     # Reindex the data to the time stamp     
     data = data.set_index('Time')
     
+    #Clean up the string setpoints for the valves
+    # 'A' = 1
+    # 'B' = 2
+    # 'Moving...' = 0
+    
+    text_columns = ['SV1 SP','SV1 Feedback','SV2 SP', 'SV2 Feedback']
+    
+    for line in text_columns:
+        if line in data.columns:
+            data[line].replace(to_replace = {'A':1, 'B':2,'A - Left position':1, 'B - Center position':2, 'Moving or Left':0}, inplace = True)
+    
     return data
 
 def ReadMSData(filename):
@@ -563,6 +617,48 @@ def ReadMSData(filename):
     
     return data
 
+def ReadBiologicData(filename):
+    """
+    tbd
+    filename type = list
+    """
+    if isinstance(filename, list) == False:
+        filename = [filename]
+    # Extract Data into pandas dataframe
+    for i in range(len(filename)):
+        if i == 0:
+            #print(filename[i])
+            data = pd.read_csv(filename[i], sep = '\t', encoding= 'unicode_escape')
+            data.drop(data.columns[data.columns.str.contains('unnamed',case = False)],
+              axis = 1, inplace = True)
+    
+            # Convert "Date and Time" to timedelta + date and time file was created
+            data.rename(columns={'time/s':'Time'}, inplace=True)
+            data['Time'] = pd.to_datetime(data['Time'])
+    
+            # Reindex the data to the time stamp     
+            data = data.set_index('Time')
+        
+        else:
+            #print(filename[i])
+            data2 = pd.read_csv(filename[i], sep = '\t', encoding= 'unicode_escape')
+            data2.drop(data2.columns[data2.columns.str.contains('unnamed',case = False)],
+              axis = 1, inplace = True)
+    
+            # Convert "Date and Time" to timedelta + date and time file was created
+            data2.rename(columns={'time/s':'Time'}, inplace=True)
+            data2['Time'] = pd.to_datetime(data2['Time'])
+    
+            # Reindex the data to the time stamp     
+            data2 = data2.set_index('Time')
+            
+            data = pd.concat([data,data2], axis=0, join="inner")
+            
+        
+        # Sort data by Index
+        data.sort_index(axis=0, level=None, ascending=True, inplace=True, kind='quicksort', na_position='last', sort_remaining=True, ignore_index=False, key=None)
+    
+    return data
 
 ##############################################################################
 
@@ -606,8 +702,19 @@ class Experiment:
         self.summary['LV Filename'] = file_name
         
         return
+    
+    def import_biologic(self, file_name):
+        '''
+        docstring here
+        '''
+        if type(file_name) != list:
+            file_name = [file_name]
+        self.process_params['Biologic Data'] = ReadBiologicData(file_name)
+        self.summary['Biologic Filename'] = file_name
         
-    def import_spectra_data(self, xas_data_directory, xas_data_structure):
+        return
+        
+    def import_spectra_data(self, xas_data_directory, xas_data_structure, print_name = True):
         '''
         TBD
         '''
@@ -616,8 +723,10 @@ class Experiment:
         time_line = xas_data_structure['time on line']
         time_format = xas_data_structure['time format']
         padded = xas_data_structure['padded scan numbers']
+        is_QEXAFS = xas_data_structure['is QEXAFS']
         
-        self.summary['XAS Spectra Files'] = CXAS_Sorted(xas_data_directory, time_stamp = time_stamp, time_line = time_line, time_format = time_format, padded = padded)  
+        
+        self.summary['XAS Spectra Files'] = CXAS_Sorted(xas_data_directory, time_stamp = time_stamp, time_line = time_line, time_format = time_format, padded = padded, is_QEXAFS = is_QEXAFS)  
         
         
         
@@ -625,6 +734,9 @@ class Experiment:
             
             filename = row['File Name']
             file_path = row['Path']
+            
+            if print_name:
+                print(filename)
 
             self.spectra[filename] = {}
         
@@ -643,7 +755,7 @@ class Experiment:
         TBD
         '''          
         
-        self.summary['XAS Spectra Process Params'] = self.summary['XAS Spectra Files']['File Name']
+        self.summary['XAS Spectra Process Params'] = self.summary['XAS Spectra Files'][['File Name','TOS [s]']]
         
         for key in self.process_params.keys():                
             temp_df = mergeindex(self.summary['XAS Spectra Process Params'], self.process_params[key])
@@ -666,17 +778,30 @@ class Experiment:
         df2 = df.sort_values('Data Points', axis=0, ascending=True)
         mean_dpts = df['Data Points'].mean()
         stdev_dpts = df['Data Points'].std()
-        threshold = mean_dpts-deviation*stdev_dpts
+        low_threshold = mean_dpts-deviation*stdev_dpts
+        high_threshold = mean_dpts+deviation*stdev_dpts
+        
+        lowPts_df = df[df['Data Points']<low_threshold]
+        highPts_df = df[df['Data Points']>high_threshold]
+        
+        badPts_df = pd.concat([lowPts_df,highPts_df], axis =0, ignore_index= True)
         
         print(f'Range of Data Points per Raw Spectrum: {df["Data Points"].min()}-{df["Data Points"].max()}')
         print(f'Average Number of Data Points per Raw Spectrum: {df["Data Points"].mean()}')
         print(f'Standard Deviation of Number of Data Points per Raw Spectrum: {df["Data Points"].std()}')
+        print(f'Number of spectra with datapoints less than {deviation} standard deviations from mean: {len(lowPts_df.index)}')
+        print(f'Number of spectra with datapoints greater than {deviation} standard deviations from mean: {len(highPts_df.index)}')
         print('\n\n')
         print(f'Spectra with datapoints less than {deviation} standard deviations from mean:')
+        print('\n')
+        print(lowPts_df)
         print('\n\n')
-        print(df2[df['Data Points']<threshold])
+        print(f'Spectra with datapoints greater than {deviation} standard deviations from mean:')
+        print('\n')
+        print(highPts_df)
+        print('\n')
         
-        return df, mean_dpts, stdev_dpts  
+        return df, mean_dpts, stdev_dpts, badPts_df  
             
     def remove_bad_spectra(self, spectra_list):
         '''
@@ -708,6 +833,23 @@ class Experiment:
     
     
     def organize_RawData(self, remove_duplicates = True, remove_nan_inf = True, remove_zeros = True):
+        '''
+        
+
+        Parameters
+        ----------
+        remove_duplicates : TYPE, optional
+            DESCRIPTION. The default is True.
+        remove_nan_inf : TYPE, optional
+            DESCRIPTION. The default is True.
+        remove_zeros : TYPE, optional
+            DESCRIPTION. The default is True.
+
+        Returns
+        -------
+        None.
+
+        '''
         
         if remove_duplicates:
             E_pts = []
@@ -925,12 +1067,12 @@ class Experiment:
         emax_samp = emax
 
         f1_ax1.set_xlim([emin_ref, emax_ref])
-        f1_ax1.set_title('Reference')
+        f1_ax1.set_title(spectra)
         f1_ax1.set_xlabel('Photon Energy (eV)')
         f1_ax1.set_ylabel('mu(E)x')
 
         f1_ax2.set_xlim([emin_samp, emax_samp])
-        f1_ax2.set_title('dmu/dE Reference')
+        f1_ax2.set_title(f'dmu/dE {spectra}')
         f1_ax2.set_xlabel('Photon Energy (eV)')
         f1_ax2.set_ylabel('dmu(E)x/dE')
     
@@ -1000,12 +1142,12 @@ class Experiment:
 
         '''
 
-        e0_list = []
+        e0_list = [] #List to populate edge energies into
         
         for key in self.spectra.keys():
             e0_list.append(calculate_spectrum_e0(self.spectra[key]['Absorption Spectra']['mu Sample'], edge_energy, energy_range = energy_range))
             
-        self.plot_XANES_spectra(edge_energy-energy_range, edge_energy+energy_range, spectra = 'mu Sample', e0_line = True)
+        #self.plot_XANES_spectra(edge_energy-energy_range, edge_energy+energy_range, spectra = 'mu Sample', e0_line = True)
 
         if use_mean:
             for key in self.spectra.keys():
@@ -1294,7 +1436,7 @@ class Experiment:
 
 
         
-    def plot_LCF_results(self, fit_name, process_parameter = None):
+    def plot_LCF_results(self, fit_name, error_bars = True, process_parameter = None):
         # Define Figure [2 panel side by side]
         fig1 = plt.figure(constrained_layout=True, figsize = (10,10))
         spec1 = gridspec.GridSpec(ncols = 6, nrows = 10, figure = fig1)
@@ -1305,9 +1447,14 @@ class Experiment:
         for col in self.analysis['LCF'][fit_name]['Fit Summary'].columns:
             if not 'stdev' in col:
                 if 'Amp' in col and not 'Sum' in col:
-                    f1_ax1.errorbar(self.analysis['LCF'][fit_name]['Fit Summary'][col].index, 
+                    if error_bars:
+                        f1_ax1.errorbar(self.analysis['LCF'][fit_name]['Fit Summary'][col].index, 
                                     self.analysis['LCF'][fit_name]['Fit Summary'][col], 
                                     yerr = self.analysis['LCF'][fit_name]['Fit Summary'][col+'-stdev'],
+                                    label = col)
+                    else:
+                        f1_ax1.plot(self.analysis['LCF'][fit_name]['Fit Summary'][col].index, 
+                                    self.analysis['LCF'][fit_name]['Fit Summary'][col], 
                                     label = col)
                 elif 'Sum' in col:
                     f1_ax1.plot(self.analysis['LCF'][fit_name]['Fit Summary'][col], label = col)
@@ -1323,7 +1470,7 @@ class Experiment:
         
         f1_ax1.legend(loc='center right')
         f1_ax1.set_ylabel('Fraction of Basis')
-        f1_ax1.set_ylim([-0.1, 1.5])
+        f1_ax1.set_ylim([-0.1, 1.1])
         f1_ax2.set_xlabel('Spectra')
         f1_ax2.set_ylabel('Reduced Chi^2')
         
