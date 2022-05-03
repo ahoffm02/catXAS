@@ -1283,9 +1283,15 @@ class Experiment:
             fit_param['RedChi2'].append(self.analysis['LCF'][fit_name]['Results'][key].redchi)
             fit_param['Variables'].append(self.analysis['LCF'][fit_name]['Results'][key].result.__dict__['nvarys'])
 
-            for x, key2 in zip(list(range(no_basis)), self.analysis['LCF'][fit_name]['Results'][key].result.params.keys()):       
-                fit_param[f'Amp{x+1}'].append(self.analysis['LCF'][fit_name]['Results'][key].result.params[key2].value)
-                fit_param[f'Amp{x+1}-stdev'].append(self.analysis['LCF'][fit_name]['Results'][key].result.params[key2].stderr)
+            # Block removed for lower suggestion given a potential bug with the appearnce of "E0_shift" in teh fit table            
+            #for x, key2 in zip(list(range(no_basis)), self.analysis['LCF'][fit_name]['Results'][key].result.params.keys()):       
+            #    fit_param[f'Amp{x+1}'].append(self.analysis['LCF'][fit_name]['Results'][key].result.params[key2].value)
+            #    fit_param[f'Amp{x+1}-stdev'].append(self.analysis['LCF'][fit_name]['Results'][key].result.params[key2].stderr)
+            
+            # Jordan's Additions to account for a potential "E0_shift" term that sometimes shows up
+            for x in np.arange(no_basis):
+                fit_param[f'Amp{x+1}'].append(self.analysis['LCF'][fit_name]['Results'][key].result.params[f'c{x}'].value)
+                fit_param[f'Amp{x+1}-stdev'].append(self.analysis['LCF'][fit_name]['Results'][key].result.params[f'c{x}'].stderr)
 
             
             fit_param['Sum Amp'].append(self.analysis['LCF'][fit_name]['Results'][key].result.params['total'].value)
