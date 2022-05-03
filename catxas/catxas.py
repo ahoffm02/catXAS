@@ -109,25 +109,57 @@ def calculate_spectrum_e0(larch_group, edge_energy, energy_range = 20):
         return e0_pos
 
 def create_larch_spectrum(photon_energy, numerator, denominator, log=True, flip = False, name = None):
-        '''
-        docstring here, list, list, list, bool, bool
-        '''
-       
-        if name != None:
-            spectrum = larch.Group(name = name)
-        elif name == None:
-            spectrum = larch.Group()
-        
-        spectrum.energy = photon_energy
-        spectrum.mu = calc_mu(numerator, denominator, log=True, flip = False)
-        
-        if name != None:
-            spectrum.name = name
-        
-        return spectrum
+    '''
+    Geenrates a X-ray Larch Group populated with an energy array (energy), and an absoprtion coefficinet array (mu).
+    
+    Mu is calcuated based upon list inputs that are passed to the calc_mu function.
+
+    Parameters
+    ----------
+    photon_energy : LIST
+        List of int/float corresponding to the photon energy of the spectrum.
+    numerator : LIST
+        List of int/float used as the numerator term to calcualte mu. 
+        Passed to calc_mu function.
+    denominator : LIST
+        List uof int/float used as the denominator term to calcualte mu. 
+        Passed to calc_mu function.
+    log : BOOL, optional
+        Bool used to determine if the natural log is applies to the calculation 
+        of mu. Passed to calc_mu function. 
+        The default is True.
+    flip : BOOL, optional
+        Bool used to determine if the numerator and denominator need to be 
+        flipped duringthe calculation of mu. Passed to calc_mu function. 
+        The default is False.
+    name : STRING, optional
+        Name of Larch group - WARNING - use of the same name in a code will 
+        overwrite parameters, best left as default. The default is None.
+
+    Returns
+    -------
+    spectrum : Larch Group
+        Larch group with energy and mu variables, Group name is either self 
+        or user assinged.
+
+    '''
+               
+    if name != None:
+        spectrum = larch.Group(name = name)
+    elif name == None:
+        spectrum = larch.Group()
+    
+    spectrum.energy = photon_energy
+    spectrum.mu = calc_mu(numerator, denominator, log=True, flip = False)
+    
+    if name != None:
+        spectrum.name = name
+    
+    return spectrum
+
 
 def create_subdir(parent_dir, sub_dir):
-    """
+    '''
     Fuction to make a subdirectory in specified directory. Checks to see if 
     the directory already exists, and eitehr makes it or doesn't. Updates
     command line to the status of the subdirectory.
@@ -144,7 +176,7 @@ def create_subdir(parent_dir, sub_dir):
     newdir : str
         full path strin of created director
 
-    """
+    '''
 
     newdir = os.path.join(parent_dir, sub_dir)
 
@@ -277,7 +309,7 @@ def CXAS_Sorted(files_directory, time_stamp = True, time_line = 0, time_format =
 
 def feff_PathSummary(filename, sigma2 = 0.003, feff = 6):
     '''
-    returns dictionary cotnaining feffpath groups and a summary of all paths 
+    Returns dictionary cotnaining feffpath groups and a summary of all paths 
     sorted by scattering type frm feff input file "filename"
 
     Parameters
