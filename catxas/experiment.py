@@ -537,7 +537,7 @@ class Experiment:
         return
 
     
-    def calibrate_reference_spectra(self, edge_energy, energy_range=20, use_mean = True):
+    def calibrate_reference_spectra(self, edge_energy, energy_range=20, use_mean = True, data_filtering = True, plot_filtering = True, window_length = 5, polyorder = 2):
         '''
         Calibrates the reference channel spectra based upon edge_energy provided
         sets reference energy e0 to edge_energy
@@ -555,25 +555,36 @@ class Experiment:
             
             self.spectra[key]['Absorption Spectra']['mu Reference'].e0 = edge_energy
             
-            e0_calc = xfcts.calculate_spectrum_e0(self.spectra[key]['Absorption Spectra']['mu Reference'], edge_energy, energy_range = energy_range, set_E0 = False)
+            # Calculate the delE from range provided in function
+            # Added potential for filtering of data to find the edge for noisy/oversampled data
+            e0_calc = xfcts.calculate_spectrum_e0(self.spectra[key]['Absorption Spectra']['mu Reference'], 
+                                                  edge_energy, energy_range = energy_range, set_E0 = False, 
+                                                  filtering = data_filtering, window_length = window_length, polyorder = polyorder)
+            # Calcualte delE
             delE = edge_energy - e0_calc
             
+            # Update Summary lists
             e0_list.append(e0_calc)
             delE_list.append(delE)
                 
+            # Store group name for plotting data
+            groups.append(self.spectra[key]['Absorption Spectra']['mu Reference'])
+        
+            # Set energy range for plotting     
+            emin = edge_energy-energy_range
+            emax = edge_energy+energy_range    
+            
             if not use_mean:
                  
                 self.spectra[key]['Absorption Spectra']['mu Reference'].delE = delE
                 self.spectra[key]['Absorption Spectra']['mu Sample'].delE = delE
              
-            
-            groups.append(self.spectra[key]['Absorption Spectra']['mu Reference'])
-        
-             
-        emin = edge_energy-energy_range
-        emax = edge_energy+energy_range
-            
-        pfcts.plot_XANES(groups, emin, emax, spectra = 'mu', deriv = True, e0 = edge_energy, e0_line = True, overlay = True, use_legend = False)
+        if not use_mean:     
+            # Plot reference group(s)
+            pfcts.plot_XANES(groups, emin, emax, spectra = 'mu', 
+                             deriv = True, e0 = edge_energy, e0_line = True, 
+                             overlay = True, use_legend = False, 
+                             filtering = plot_filtering, window_length = window_length, polyorder = polyorder)
         
         print('Reference Edge Finding Statistics:')
         print(f'\tReference E0 min:  {min(e0_list):.2f} eV')
@@ -590,11 +601,14 @@ class Experiment:
              self.spectra[key]['Absorption Spectra']['mu Reference'].delE = delE
              self.spectra[key]['Absorption Spectra']['mu Sample'].delE = delE
         
-        pfcts.plot_XANES(groups, emin, emax, spectra = 'mu', deriv = True, e0 = None, e0_line = True, overlay = True, use_legend = False)
+            pfcts.plot_XANES(groups, emin, emax, spectra = 'mu',
+                             deriv = True, e0 = None, e0_line = True, 
+                             overlay = True, use_legend = False, 
+                             filtering = plot_filtering, window_length = window_length, polyorder = polyorder)
         
         return
         
-    def find_sample_e0(self, edge_energy, energy_range = 20, use_mean = True):
+    def find_sample_e0(self, edge_energy, energy_range = 20, use_mean = True, data_filtering = True, plot_filtering = True, window_length = 5, polyorder = 2):
         '''
         finds the edge positions of the samples around edge_energy value and energy_range
         set sample e0 value to found value or mean value
@@ -607,35 +621,36 @@ class Experiment:
         groups = []
         
         for key in self.spectra.keys():
-            e0_list.append(xfcts.calculate_spectrum_e0(self.spectra[key]['Absorption Spectra']['mu Sample'], edge_energy, energy_range = energy_range, set_E0 = True))
+            e0_list.append(xfcts.calculate_spectrum_e0(self.spectra[key]['Absorption Spectra']['mu Sample'],
+                                                       edge_energy, energy_range = energy_range, set_E0 = True,
+                                                       filtering = data_filtering, window_length = window_length, polyorder = polyorder))
             groups.append(self.spectra[key]['Absorption Spectra']['mu Sample'])
             
         emin = edge_energy-energy_range
         emax = edge_energy+energy_range
             
-        pfcts.plot_XANES(groups, emin, emax, spectra = 'mu', deriv = True, e0 = None, e0_line = False, overlay = True, use_legend = False)
+        if not use_mean:
+            pfcts.plot_XANES(groups, emin, emax, spectra = 'mu', 
+                         deriv = True, e0 = None, e0_line = False, 
+                         overlay = True, use_legend = False,
+                         filtering = plot_filtering, window_length = window_length, polyorder = polyorder)
         
         if use_mean:
             for key in self.spectra.keys():
                 self.spectra[key]['Absorption Spectra']['mu Sample'].e0 = np.asarray(e0_list).mean()
         
-        print('Sample Calibraiton Statistics:')
-        print(f'\tSample E0 min: {min(e0_list):.2f} eV')
-        print(f'\tSample E0 max: {max(e0_list):.2f} eV')
-        print(f'\tSample E0 mean: {np.asarray(e0_list).mean():.2f} +/- {np.asarray(e0_list).std():.2f} eV')
+            print('Sample Calibraiton Statistics:')
+            print(f'\tSample E0 min: {min(e0_list):.2f} eV')
+            print(f'\tSample E0 max: {max(e0_list):.2f} eV')
+            print(f'\tSample E0 mean: {np.asarray(e0_list).mean():.2f} +/- {np.asarray(e0_list).std():.2f} eV')
+                
+            pfcts.plot_XANES(groups, emin, emax, spectra = 'mu', 
+                             deriv = True, e0 = None, e0_line = True, 
+                             overlay = True, use_legend = False,
+                             filtering = plot_filtering, window_length = window_length, polyorder = polyorder)
             
-        pfcts.plot_XANES(groups, emin, emax, spectra = 'mu', deriv = True, e0 = None, e0_line = True, overlay = True, use_legend = False)
-        
         return
 
-    
-    # Depreciated - To be removed
-    def set_normalization_parameters(self, spectra_name, pre1 = -100, pre2 = -50, norm1 = 75, norm2 = 300, nnorm = 2, make_flat = True):
-        
-        for key in self.spectra.keys():
-            xfcts.update_norm_params(self.spectra[key]['Absorption Spectra'][spectra_name],pre1 = pre1, pre2 = pre2, norm1 = norm1, norm2 = norm2, nnorm = nnorm, make_flat = make_flat)
-        
-        return
         
     def normalize_spectra(self, spectra_name):        
         '''
@@ -653,26 +668,36 @@ class Experiment:
 
         return
     
-    def extract_EXAFS_spectra(self, spectra_name):        
+    def extract_EXAFS_spectra(self, spectra_name):
         '''
-        FILL ME IN
-        spectra
+        Calculates the EXAFS spectrum from a spectrum in a larch group.
+        Spectra name is either 'mu Sample' or 'mu Reference' following convention for experiment object.
+
+        Parameters
+        ----------
+        spectra_name : STR
+            Spectra name, either 'mu Sample' or 'mu Reference'.
 
         Returns
         -------
         None.
 
-        '''
-                
+        '''        
+                        
         for key in self.spectra.keys():
             xfcts.calc_spectrum_exafs(self.spectra[key]['Absorption Spectra'][spectra_name])
 
         return
     
-    def FT_EXAFS_spectra(self, spectra_name):        
+    def FT_EXAFS_spectra(self, spectra_name): 
         '''
-        FILL ME IN
-        spectra
+        Calculates the Fourier-Transform of the Chi data extracted from a spectrum in a larch group.
+        Spectra name is either 'mu Sample' or 'mu Reference' following convention for experiment object.
+
+        Parameters
+        ----------
+        spectra_name : STR
+            Spectra name, either 'mu Sample' or 'mu Reference'.
 
         Returns
         -------
@@ -687,6 +712,21 @@ class Experiment:
     
     
     def load_params(self, spectra_name, param_dict):
+        '''
+        loads paramters from dictionary using key-value into each spectra in experiment object
+
+        Parameters
+        ----------
+        spectra_name : STR
+            Spectra name, either 'mu Sample' or 'mu Reference'.
+        param_dict : DICT
+            Dictionary of key-values for paramters to be used in teh larch group for performing XAS calculations.
+
+        Returns
+        -------
+        None.
+
+        '''
         
         for key1 in self.spectra.keys():
             for key2 in param_dict.keys():

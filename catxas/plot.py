@@ -18,6 +18,9 @@ import numpy as np
 from matplotlib import pyplot as plt
 import matplotlib.gridspec as gridspec
 
+# Data Processing
+from scipy.signal import savgol_filter
+
 #From Catxas
 import general as fcts
 
@@ -32,8 +35,10 @@ def get_cmap(n, name='brg'):
     return plt.cm.get_cmap(name, n)
 
 
-def plot_XANES(larch_groups, emin, emax, spectra = 'mu', deriv = True, e0 = None, e0_line = True, overlay = True, use_legend = True, cmap_name = 'brg'):
+def plot_XANES(larch_groups, emin, emax, spectra = 'mu', deriv = True, e0 = None, e0_line = True, overlay = True, use_legend = True, cmap_name = 'brg', filtering = True, window_length = 5, polyorder = 2):
     '''
+    UPDATE!!!!
+    
     Plot XANES Spectra from Larch Grouops
 
     Parameters
@@ -105,10 +110,14 @@ def plot_XANES(larch_groups, emin, emax, spectra = 'mu', deriv = True, e0 = None
                 e0_line = False
                 
         # Define X (energy) and Y (absorption coefficient) 
-        x1 = larch_groups[i].energy + larch_groups[i].delE
-        y1 = larch_groups[i].__dict__[spectra]
+        if filtering:
+            x1 = larch_groups[i].energy + larch_groups[i].delE
+            y1 = savgol_filter(larch_groups[i].__dict__[spectra], window_length = window_length, polyorder = polyorder) 
+        elif not filtering: 
+            x1 = larch_groups[i].energy + larch_groups[i].delE
+            y1 = larch_groups[i].__dict__[spectra]
         
-        # Calcualte Der.
+        # Calcualte Der. - will be smoothed already if filtering applied above
         x2 = (x1[:-1] + x1[1:]) / 2
         der = np.diff(y1) / np.diff(x1)
         

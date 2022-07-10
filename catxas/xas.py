@@ -22,11 +22,15 @@ from datetime import datetime as dt
 import pandas as pd
 import numpy as np
 
+# Data Processing
+from scipy.signal import savgol_filter
+
 # X-ray Science
 import larch
 
 #From Catxas
 import general as fcts
+
 
 ##############################################################################
 
@@ -137,7 +141,7 @@ def create_larch_spectrum(photon_energy, numerator, denominator, log=True, flip 
     
     return spectrum
 
-def calculate_spectrum_e0(larch_group, edge_energy, energy_range = 20, set_E0 = True):
+def calculate_spectrum_e0(larch_group, edge_energy, energy_range = 20, set_E0 = True, filtering = True, window_length = 5, polyorder = 2):
     '''
     Finds the "Edge position" defined by the maximum in the first derivative.
     Note: No data smoothing applied when finding the value.
@@ -169,9 +173,17 @@ def calculate_spectrum_e0(larch_group, edge_energy, energy_range = 20, set_E0 = 
     
     ind_min = fcts.find_nearest(energy, emin)[0]
     ind_max = fcts.find_nearest(energy, emax)[0]
-
-    e0_pos = larch.xafs.find_e0(energy[ind_min:ind_max], 
-                       mu = larch_group.mu[ind_min:ind_max],
+    
+    # Apply smoothing if needed
+    energy_range = energy[ind_min:ind_max]
+    
+    if filtering:
+        mu_range = savgol_filter(larch_group.mu[ind_min:ind_max], window_length, polyorder)
+    elif not filtering:
+        mu_range = larch_group.mu[ind_min:ind_max]
+    
+    e0_pos = larch.xafs.find_e0(energy_range, 
+                       mu = mu_range,
                        group = None)
 
     if set_E0:
