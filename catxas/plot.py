@@ -311,6 +311,9 @@ def plot_chi(larch_groups, kweight = 2, kmin = 0, kmax = 15, overlay = True, use
     # Count number of groups in list    
     num_groups = len(larch_groups)
     
+    # Set Color Grid
+    cmap = get_cmap(num_groups, name = cmap_name)
+    
     # Set Figure paramters based on number of groups and other inputs
     if overlay:
         # 1 plot wide, 1 plot tall
@@ -320,9 +323,6 @@ def plot_chi(larch_groups, kweight = 2, kmin = 0, kmax = 15, overlay = True, use
         # n plots tall
         height = 5
         nrows = 1
-        
-        # Set Color Grid
-        cmap = get_cmap(num_groups, name = cmap_name)
         
     elif not overlay:
         # 1 plots wide
@@ -340,18 +340,21 @@ def plot_chi(larch_groups, kweight = 2, kmin = 0, kmax = 15, overlay = True, use
     # Add subplots and data for each group
     for i in range(num_groups):
         
+        # Define X (k) and Y (chi*k^n) 
+        k = larch_groups[i].k
+        chi = np.multiply(larch_groups[i].chi, k**kweight)
+        
+        
         # Overlaying Data:
         if overlay:
             
-            # Add Spectra Subplots + Data
-            ax1 = fig1.add_subplot(spec1[0,0])
-            
-            # Define X (k) and Y (chi*k^n) 
-            k = larch_groups[i].k
-            chi = np.multiply(larch_groups[i].chi, k**kweight)
-            
             # Update plotting limits with each spectra
             if i == 0:
+                
+                # Add Spectra Subplots + Data
+                ax1 = fig1.add_subplot(spec1[0,0])
+                
+                # Set Limits                
                 k_range = [fcts.find_nearest(k, kmin)[0], fcts.find_nearest(k, kmax)[0]]
                 chi_min = min(chi[k_range[0]:k_range[1]])
                 chi_max = max(chi[k_range[0]:k_range[1]])
@@ -393,7 +396,7 @@ def plot_chi(larch_groups, kweight = 2, kmin = 0, kmax = 15, overlay = True, use
             chi_max = max(chi[k_range[0]:k_range[1]])
             
             # Add Data to Axis
-            ax1.plot(k, chi, label = larch_groups[i].__name__, color = 'k', linestyle = 'solid')
+            ax1.plot(k, chi, label = larch_groups[i].__name__, color = cmap(i), linestyle = 'solid')
             
             if use_legend:
                 ax1.legend(loc="upper left")
@@ -415,6 +418,9 @@ def plot_FT(larch_groups, Rmin = 0, Rmax = 6, magnitude = True, imaginary = True
     # Count number of groups in list    
     num_groups = len(larch_groups)
     
+    # Set Color Grid
+    cmap = get_cmap(num_groups, name = cmap_name)
+    
     # Set Figure paramters based on number of groups and other inputs
     if overlay:
         # 1 plot wide, 1 plot tall
@@ -424,10 +430,7 @@ def plot_FT(larch_groups, Rmin = 0, Rmax = 6, magnitude = True, imaginary = True
         # n plots tall
         height = 5
         nrows = 1
-        
-        # Set Color Grid
-        cmap = get_cmap(num_groups, name = cmap_name)
-        
+   
     elif not overlay:
         # 1 plots wide
         width = 6
@@ -444,24 +447,24 @@ def plot_FT(larch_groups, Rmin = 0, Rmax = 6, magnitude = True, imaginary = True
     # Add subplots and data for each group
     for i in range(num_groups):
         
+        # Define X (R) and Y (magnitude, imaginary, and/or real) 
+        R = larch_groups[i].r
+        if magnitude:
+            mag =  larch_groups[i].chir_mag
+        if imaginary:
+            imag = larch_groups[i].chir_im
+        if real:
+            rmag = larch_groups[i].chir_re
+        
         # Overlaying Data:
         if overlay:
-            
-            # Add Spectra Subplots + Data
-            ax1 = fig1.add_subplot(spec1[0,0])
-            
-            # Define X (R) and Y (magnitude, imaginary, and/or real) 
-            R = larch_groups[i].r
-            if magnitude:
-                mag =  larch_groups[i].chir_mag
-            if imaginary:
-                imag = larch_groups[i].chir_im
-            if real:
-                rmag = larch_groups[i].chir_re
-            
-            
-            # Update plotting limits with each spectra
+             
+            # Set subplot and Update plotting limits with each spectra
             if i == 0:
+                
+                # Add Spectra Subplots + Data
+                ax1 = fig1.add_subplot(spec1[0,0])
+                
                 R_Range = [fcts.find_nearest(R, Rmin)[0], fcts.find_nearest(R, Rmax)[0]]
                 FT_max = max(mag[R_Range[0]:R_Range[1]])
                 
@@ -496,15 +499,6 @@ def plot_FT(larch_groups, Rmin = 0, Rmax = 6, magnitude = True, imaginary = True
             # Add Spectra Subplots + Data
             ax1 = fig1.add_subplot(spec1[i,0])
             
-            # Define X (k) and Y (chi*k^n) 
-            R = larch_groups[i].r
-            if magnitude:
-                mag =  larch_groups[i].chir_mag
-            if imaginary:
-                imag = larch_groups[i].chir_im
-            if real:
-                rmag = larch_groups[i].chir_re
-            
             # Plotting limits with each spectra
             R_Range = [fcts.find_nearest(R, Rmin)[0], fcts.find_nearest(R, Rmax)[0]]
             FT_max = max(mag[R_Range[0]:R_Range[1]])
@@ -527,4 +521,3 @@ def plot_FT(larch_groups, Rmin = 0, Rmax = 6, magnitude = True, imaginary = True
 
             ax1.set_ylim([-1.25*FT_max, 1.25*FT_max])
             ax1.set_ylabel(f'k^{larch_groups[i].kweight} weighted X(R)')
-    
