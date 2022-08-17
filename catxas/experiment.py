@@ -20,6 +20,7 @@ import numpy as np
 
 # X-ray Science
 import larch
+from larch.io import read_ascii
 
 
 # Plotting
@@ -187,7 +188,7 @@ class Experiment:
             
             energy_name = xas_data_structure['energy column']
             
-            self.spectra[filename]['BL Data'] = larch.io.read_ascii(file_path, labels=col_names)
+            self.spectra[filename]['BL Data'] = read_ascii(file_path, labels=col_names)
             
             self.spectra[filename]['BL Data'].__name__ = filename
             
@@ -537,12 +538,16 @@ class Experiment:
         return
 
     
-    def calibrate_reference_spectra(self, edge_energy, energy_range=20, use_mean = True, data_filtering = True, plot_filtering = True, window_length = 5, polyorder = 2):
+    def calibrate_reference_spectra(self, edge_energy, energy_range=20, use_mean = True, overlay = True, data_filtering = True, plot_filtering = True, window_length = 5, polyorder = 2):
         '''
         Calibrates the reference channel spectra based upon edge_energy provided
         sets reference energy e0 to edge_energy
         shifts sample + reference energy scales based upon average edge energy position
         '''
+        # Set energy range for plotting     
+        emin = edge_energy-energy_range
+        emax = edge_energy+energy_range
+        
         e0_list = []
         delE_list = []
         groups = []
@@ -569,46 +574,40 @@ class Experiment:
                 
             # Store group name for plotting data
             groups.append(self.spectra[key]['Absorption Spectra']['mu Reference'])
-        
-            # Set energy range for plotting     
-            emin = edge_energy-energy_range
-            emax = edge_energy+energy_range    
             
+            # Store Del_E if not averaging             
             if not use_mean:
                  
                 self.spectra[key]['Absorption Spectra']['mu Reference'].delE = delE
                 self.spectra[key]['Absorption Spectra']['mu Sample'].delE = delE
              
-        if not use_mean:     
-            # Plot reference group(s)
-            pfcts.plot_XANES(groups, emin, emax, spectra = 'mu', 
-                             deriv = True, e0 = edge_energy, e0_line = True, 
-                             overlay = True, use_legend = False, 
-                             filtering = plot_filtering, window_length = window_length, polyorder = polyorder)
+        # Calcualte mean delE even if not used
+        del_E = edge_energy - np.asarray(e0_list).mean()
         
+        # Report Energy statistics
         print('Reference Edge Finding Statistics:')
         print(f'\tReference E0 min:  {min(e0_list):.2f} eV')
         print(f'\tReference E0 max:  {max(e0_list):.2f} eV')
         print(f'\tReference E0 mean: {np.asarray(e0_list).mean():.2f} +/- {np.asarray(e0_list).std():.2f} eV')
         print(f'\tdelE range: {np.asarray(delE_list).min():.2f}-{np.asarray(delE_list).max():.2f} eV')
-
-        if use_mean:
-            del_E = edge_energy - np.asarray(e0_list).mean()
-            print('\nMean E0 Parameters:')
-            print(f'\tdelE mean: {del_E:.2f} eV')
-            
-            for key in self.spectra.keys():  
-             self.spectra[key]['Absorption Spectra']['mu Reference'].delE = delE
-             self.spectra[key]['Absorption Spectra']['mu Sample'].delE = delE
+        print('\nMean E0 Parameters:')
+        print(f'\tdelE mean: {del_E:.2f} eV')
         
-            pfcts.plot_XANES(groups, emin, emax, spectra = 'mu',
-                             deriv = True, e0 = None, e0_line = True, 
-                             overlay = True, use_legend = False, 
-                             filtering = plot_filtering, window_length = window_length, polyorder = polyorder)
+        # If using mean del_E store average del_E
+        if use_mean:
+            for key in self.spectra.keys():  
+                self.spectra[key]['Absorption Spectra']['mu Reference'].delE = delE
+                self.spectra[key]['Absorption Spectra']['mu Sample'].delE = delE
+        
+        # Plot Data
+        pfcts.plot_XANES(groups, emin, emax, spectra = 'mu', 
+                         deriv = True, e0 = None, e0_line = True, ref_lines = edge_energy,
+                         overlay = overlay, use_legend = False, 
+                         filtering = plot_filtering, window_length = window_length, polyorder = polyorder)
         
         return
         
-    def find_sample_e0(self, edge_energy, energy_range = 20, use_mean = True, data_filtering = True, plot_filtering = True, window_length = 5, polyorder = 2):
+    def find_sample_e0(self, edge_energy, energy_range = 20, use_mean = True, overlay = True, data_filtering = True, plot_filtering = True, window_length = 5, polyorder = 2):
         '''
         finds the edge positions of the samples around edge_energy value and energy_range
         set sample e0 value to found value or mean value
@@ -632,7 +631,7 @@ class Experiment:
         if not use_mean:
             pfcts.plot_XANES(groups, emin, emax, spectra = 'mu', 
                          deriv = True, e0 = None, e0_line = False, 
-                         overlay = True, use_legend = False,
+                         overlay = overlay, use_legend = False,
                          filtering = plot_filtering, window_length = window_length, polyorder = polyorder)
         
         if use_mean:
@@ -646,7 +645,7 @@ class Experiment:
                 
             pfcts.plot_XANES(groups, emin, emax, spectra = 'mu', 
                              deriv = True, e0 = None, e0_line = True, 
-                             overlay = True, use_legend = False,
+                             overlay = overlay, use_legend = False,
                              filtering = plot_filtering, window_length = window_length, polyorder = polyorder)
             
         return

@@ -35,7 +35,7 @@ def get_cmap(n, name='brg'):
     return plt.cm.get_cmap(name, n)
 
 
-def plot_XANES(larch_groups, emin, emax, spectra = 'mu', deriv = True, e0 = None, e0_line = True, overlay = True, use_legend = True, cmap_name = 'brg', filtering = True, window_length = 5, polyorder = 2):
+def plot_XANES(larch_groups, emin, emax, spectra = 'mu', deriv = True, e0 = None, e0_line = True, ref_lines = None, overlay = True, use_legend = True, cmap_name = 'brg', filtering = True, window_length = 5, polyorder = 2):
     '''
     UPDATE!!!!
     
@@ -63,6 +63,9 @@ def plot_XANES(larch_groups, emin, emax, spectra = 'mu', deriv = True, e0 = None
     None.
 
     '''
+    # Store value of e0 from input
+    e0_temp = e0
+    
     
     # Make the group a list if it isnt already one
     if type(larch_groups) != list:
@@ -71,7 +74,11 @@ def plot_XANES(larch_groups, emin, emax, spectra = 'mu', deriv = True, e0 = None
     # Count number of groups in list    
     num_groups = len(larch_groups)
     
-    # Set Figure paramters based on number of groups and other inputs
+    # Make the rel_lines a list if it isnt already one
+    if ref_lines != None and type(ref_lines) != list:
+        ref_lines = [ref_lines]
+    
+    # Set Figure paramters based on number of groups and use of derivative plot
     if deriv:
         # 2 plots wide
         width = 12
@@ -87,13 +94,14 @@ def plot_XANES(larch_groups, emin, emax, spectra = 'mu', deriv = True, e0 = None
         height = 5
         nrows = 1
         
-        # Set Color Grid
-        cmap = get_cmap(num_groups, name = cmap_name)
     
     elif not overlay:
         # n plots tall
         height = num_groups*5
         nrows = num_groups
+        
+    # Set Color Grid
+    cmap = get_cmap(num_groups, name = cmap_name)
         
     # Set up plot   
     fig1 = plt.figure(constrained_layout=True, figsize = (width, height))
@@ -101,48 +109,141 @@ def plot_XANES(larch_groups, emin, emax, spectra = 'mu', deriv = True, e0 = None
     
     # Add subplots and dta for each group
     for i in range(num_groups):
+        # Dignostic check, print line number
+        #print(i)
         
-        # Check to See if E0 has been defined in spectra if e0 == None. If not, ignore plotting
-        if e0_line and e0 == None:
-            try:
-                e0 = larch_groups[i].e0
-            except:
-                e0_line = False
-                
         # Define X (energy) and Y (absorption coefficient) 
+        x1 = larch_groups[i].energy + larch_groups[i].delE
+        
         if filtering:
-            x1 = larch_groups[i].energy + larch_groups[i].delE
             y1 = savgol_filter(larch_groups[i].__dict__[spectra], window_length = window_length, polyorder = polyorder) 
         elif not filtering: 
-            x1 = larch_groups[i].energy + larch_groups[i].delE
             y1 = larch_groups[i].__dict__[spectra]
         
         # Calcualte Der. - will be smoothed already if filtering applied above
         x2 = (x1[:-1] + x1[1:]) / 2
-        der = np.diff(y1) / np.diff(x1)
+        der_y = np.diff(y1) / np.diff(x1)
+        
+                
+        # Check to See if E0 has been defined in spectra if e0 == None. If not, ignore plotting
+        if e0_line and e0_temp == None:
+            try:
+                e0 = larch_groups[i].e0
+                # Diagnostic check, print found e0 value from group
+                #print(e0)
+            except:
+                e0 = None
+                # Diagnostic check, alert if there was no E0 foune in group
+                #print('no E0 value found')
         
         # Plotting  
         if overlay:
         
-            # Add Spectra Subplots + Data
-            ax1 = fig1.add_subplot(spec1[0,0])
-            
             # Update plotting limits with each spectra
             if i == 0:
+                # Build the subplot
+                ax1 = fig1.add_subplot(spec1[0,0])
+                
+                # Determine the current window ranges for X and Y axis
                 E_range = [fcts.find_nearest(x1, emin)[0], fcts.find_nearest(x1, emax)[0]]
                 mu_min = min(y1[E_range[0]:E_range[1]])
                 mu_max = max(y1[E_range[0]:E_range[1]])
                 del_mu = abs(mu_max-mu_min)
                 
             else:
+                
+                # Determine the current window ranges for X and Y axis
                 E_range = [fcts.find_nearest(x1, emin)[0], fcts.find_nearest(x1, emax)[0]]
                 temp_mu_min = min(y1[E_range[0]:E_range[1]])
                 temp_mu_max = max(y1[E_range[0]:E_range[1]])
-            
+                
+                # Determine if the current window ranges need to be updated
                 mu_min = min(mu_min, temp_mu_min)
                 mu_max = max(mu_max, temp_mu_max)
                 del_mu = abs(mu_max-mu_min)
                 
+            # Add Spectra to Subplot
+            ax1.plot(x1, y1, label = larch_groups[i].__name__, color = cmap(i), linestyle = 'solid')
+            
+            # Add E0 line if appropriate
+            if e0_line:
+                ax1.plot([e0, e0], [mu_min, mu_max], color = cmap(i))
+                
+            # Add reference lines if appropriate
+            if not ref_lines == None:
+                for line in ref_lines:
+                    ax1.plot([line, line], [mu_min, mu_max], color = 'r')
+                
+            if use_legend:
+                ax1.legend(loc="upper right")
+            
+            # Set Plot Formatting
+            ax1.set_xlim([emin, emax])
+            ax1.set_xlabel('Photon Energy (eV)')
+
+            ax1.set_ylim([mu_min-0.25*del_mu, mu_max+0.25*del_mu])
+            ax1.set_ylabel(spectra)
+            
+            # Add Deriv Subplot + Data
+            if deriv:
+                
+                # Update plotting limits with each spectra
+                if i == 0:
+                    
+                    # Create Subplot for Derivative
+                    ax2 = fig1.add_subplot(spec1[0,1])
+                    
+                    # Determine the window size                    
+                    der_range = [fcts.find_nearest(x2, emin)[0], fcts.find_nearest(x2, emax)[0]]
+                    der_mu_min = min(der_y[der_range[0]:der_range[1]])
+                    der_mu_max = max(der_y[der_range[0]:der_range[1]])
+                    der_del_mu = abs(der_mu_min-der_mu_max)
+
+                else:
+                    
+                    # Determine the window size
+                    der_range = [fcts.find_nearest(x2, emin)[0], fcts.find_nearest(x2, emax)[0]]
+                    temp_der_mu_min = min(der_y[der_range[0]:der_range[1]])
+                    temp_der_mu_max = max(der_y[der_range[0]:der_range[1]])
+                    
+                    # Determine if window size needs to be updated
+                    der_mu_min = min(der_mu_min, temp_der_mu_min)
+                    der_mu_max = max(der_mu_max, temp_der_mu_max)
+                    der_del_mu = abs(der_mu_max-der_mu_min)
+                
+                # Add Data to Axis
+                ax2.plot(x2, der_y, label = larch_groups[i].__name__, color = cmap(i), linestyle = 'solid')
+                
+                if use_legend:
+                    ax2.legend(loc="upper left")
+                
+                # Set Plot Formatting
+                ax2.set_xlim([emin, emax])
+                ax2.set_xlabel('Photon Energy (eV)')
+
+                ax2.set_ylim([der_mu_min-0.25*der_del_mu, der_mu_max+0.25*der_del_mu])  
+                ax2.set_ylabel(f'd{spectra}/dE')
+                
+                # Add E0 line if appropriate
+                if e0_line:
+                    ax2.plot([e0, e0],[der_mu_min-0.25*abs(der_del_mu), der_mu_max+0.25*abs(der_del_mu)],color = 'k')
+                
+                # Add reference lines if appropriate
+                if not ref_lines == None:
+                    for line in ref_lines:
+                        ax2.plot([line, line], [der_mu_min-0.25*abs(der_del_mu), der_mu_max+0.25*abs(der_del_mu)], color = 'r')
+            
+        if not overlay:
+            
+            # Create Subplot for Spectra
+            ax1 = fig1.add_subplot(spec1[i,0])
+            
+            #Find Limits to Adjsut Axis Scales
+            E_range = [fcts.find_nearest(x1, emin)[0], fcts.find_nearest(x1, emax)[0]]
+            mu_min = min(y1[E_range[0]:E_range[1]])
+            mu_max = max(y1[E_range[0]:E_range[1]])
+            del_mu = abs(mu_max-mu_min)
+            
             # Add Spectra to Subplot
             ax1.plot(x1, y1, label = larch_groups[i].__name__, color = cmap(i), linestyle = 'solid')
             
@@ -160,29 +261,25 @@ def plot_XANES(larch_groups, emin, emax, spectra = 'mu', deriv = True, e0 = None
             if e0_line:
                 ax1.plot([e0, e0], [mu_min, mu_max], color = 'k')
                 
+            # Add reference lines if appropriate
+            if not ref_lines == None:
+                for line in ref_lines:
+                    ax1.plot([line, line], [mu_min, mu_max], color = 'r')
+        
             # Add Deriv Subplot + Data
             if deriv:
                 # Create Subplot for Derivative
-                ax2 = fig1.add_subplot(spec1[0,1])
+                ax2 = fig1.add_subplot(spec1[i,1])
                 
-                # Update plotting limits with each spectra
-                if i == 0:
-                    der_range = [fcts.find_nearest(x2, emin)[0], fcts.find_nearest(x2, emax)[0]]
-                    der_mu_min = min(der[der_range[0]:der_range[1]])
-                    der_mu_max = max(der[der_range[0]:der_range[1]])
-                    der_del_mu = abs(der_mu_min-der_mu_max)
-
-                else:
-                    der_range = [fcts.find_nearest(x2, emin)[0], fcts.find_nearest(x2, emax)[0]]
-                    temp_der_mu_min = min(der[der_range[0]:der_range[1]])
-                    temp_der_mu_max = max(der[der_range[0]:der_range[1]])
-
-                    der_mu_min = min(der_mu_min, temp_der_mu_min)
-                    der_mu_max = max(der_mu_max, temp_der_mu_max)
-                    der_del_mu = abs(der_mu_max-der_mu_min)
                 
+                #Find Limits to Adjsut Axis Scales
+                der_range = [fcts.find_nearest(x2, emin)[0], fcts.find_nearest(x2, emax)[0]]
+                der_mu_min = min(der_y[der_range[0]:der_range[1]])
+                der_mu_max = max(der_y[der_range[0]:der_range[1]])
+                der_del_mu = abs(der_mu_min-der_mu_max)
+                    
                 # Add Data to Axis
-                ax2.plot(x2, der, label = larch_groups[i].__name__, color = cmap(i), linestyle = 'solid')
+                ax2.plot(x2, der_y, label = larch_groups[i].__name__, color = cmap(i), linestyle = 'solid')
                 
                 if use_legend:
                     ax2.legend(loc="upper left")
@@ -197,65 +294,13 @@ def plot_XANES(larch_groups, emin, emax, spectra = 'mu', deriv = True, e0 = None
                 # Add E0 line if appropriate
                 if e0_line:
                     ax2.plot([e0, e0],[der_mu_min-0.25*abs(der_del_mu), der_mu_max+0.25*abs(der_del_mu)],color = 'k')
-            
-            
-        if not overlay:
-            
-            # Create Subplot for Spectra
-            ax1 = fig1.add_subplot(spec1[i,0])
-            
-            #Find Limits to Adjsut Axis Scales
-            E_range = [fcts.find_nearest(x1, emin)[0], fcts.find_nearest(x1, emax)[0]]
-            mu_min = min(y1[E_range[0]:E_range[1]])
-            mu_max = max(y1[E_range[0]:E_range[1]])
-            del_mu = abs(mu_max-mu_min)
-            
-            # Add Spectra to Subplot
-            ax1.plot(x1, y1, label = larch_groups[i].__name__, color = 'k', linestyle = 'solid')
-            
-            if use_legend:
-                ax1.legend(loc="upper right")
-            
-            # Set Plot Formatting
-            ax1.set_xlim([emin, emax])
-            ax1.set_xlabel('Photon Energy (eV)')
-
-            ax1.set_ylim([mu_min-0.25*del_mu, mu_max+0.25*del_mu])
-            ax1.set_ylabel(spectra)
-            
-            # Add E0 line if appropriate
-            if e0_line:
-                ax1.plot([e0, e0], [mu_min, mu_max], color = 'b')
-        
-            # Add Deriv Subplot + Data
-            if deriv:
-                # Create Subplot for Derivative
-                ax2 = fig1.add_subplot(spec1[i,1])
                 
-                
-                #Find Limits to Adjsut Axis Scales
-                der_range = [fcts.find_nearest(x2, emin)[0], fcts.find_nearest(x2, emax)[0]]
-                der_mu_min = min(der[der_range[0]:der_range[1]])
-                der_mu_max = max(der[der_range[0]:der_range[1]])
-                der_del_mu = abs(der_mu_min-der_mu_max)
-                    
-                # Add Data to Axis
-                ax2.plot(x2, der, label = larch_groups[i].__name__, color = 'k', linestyle = 'solid')
-                
-                if use_legend:
-                    ax2.legend(loc="upper left")
-                
-                # Set Plot Formatting
-                ax2.set_xlim([emin, emax])
-                ax2.set_xlabel('Photon Energy (eV)')
-
-                ax2.set_ylim([der_mu_min-0.25*der_del_mu, der_mu_max+0.25*der_del_mu])  
-                ax2.set_ylabel(f'd{spectra}/dE')
-                
-                # Add E0 line if appropriate
-                if e0_line:
-                    ax2.plot([e0, e0],[der_mu_min-0.25*abs(der_del_mu), der_mu_max+0.25*abs(der_del_mu)],color = 'b')
-
+                # Add reference lines if appropriate
+                if not ref_lines == None:
+                    for line in ref_lines:
+                        ax2.plot([line, line], [der_mu_min-0.25*abs(der_del_mu), der_mu_max+0.25*abs(der_del_mu)], color = 'r')
+                        
+    return
     
 def plot_chi(larch_groups, kweight = 2, kmin = 0, kmax = 15, overlay = True, use_legend = True, cmap_name = 'brg'):
     
