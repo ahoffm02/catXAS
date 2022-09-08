@@ -223,7 +223,7 @@ def CXAS_Sorted(files_directory, time_stamp = True, time_line = 0, time_format =
     '''
     
     # Use glob2 to get a list of all files in files_directory
-    files = glob2.glob(files_directory + '/*')
+    files = glob2.glob(files_directory + '/**/*/*')
     
     
     path_series = pd.Series(files)
