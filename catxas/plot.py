@@ -133,6 +133,7 @@ def plot_XANES(larch_groups, emin, emax, spectra = 'mu', deriv = True, e0 = None
                 #print(e0)
             except:
                 e0 = None
+                print(f'E0 not defined in {larch_groups[i].__name__} or function - E0 not plotted')
                 # Diagnostic check, alert if there was no E0 foune in group
                 #print('no E0 value found')
         
@@ -166,13 +167,15 @@ def plot_XANES(larch_groups, emin, emax, spectra = 'mu', deriv = True, e0 = None
             ax1.plot(x1, y1, label = larch_groups[i].__name__, color = cmap(i), linestyle = 'solid')
             
             # Add E0 line if appropriate
-            if e0_line:
-                ax1.plot([e0, e0], [mu_min, mu_max], color = cmap(i))
+            if e0_line and e0 != None:
+                ax1.axvline(e0, color = 'k')
+                #ax1.plot([e0, e0], [mu_min, mu_max], color = cmap(i))
                 
             # Add reference lines if appropriate
-            if not ref_lines == None:
+            if ref_lines != None:
                 for line in ref_lines:
-                    ax1.plot([line, line], [mu_min, mu_max], color = 'r')
+                    ax1.axvline(line, color = 'r')
+                    #ax1.plot([line, line], [mu_min, mu_max], color = 'r')
                 
             if use_legend:
                 ax1.legend(loc="upper right")
@@ -225,13 +228,15 @@ def plot_XANES(larch_groups, emin, emax, spectra = 'mu', deriv = True, e0 = None
                 ax2.set_ylabel(f'd{spectra}/dE')
                 
                 # Add E0 line if appropriate
-                if e0_line:
-                    ax2.plot([e0, e0],[der_mu_min-0.25*abs(der_del_mu), der_mu_max+0.25*abs(der_del_mu)],color = 'k')
+                if e0_line and e0 != None:
+                    ax2.axvline(e0, color = 'k')
+                    #ax2.plot([e0, e0],[der_mu_min-0.25*abs(der_del_mu), der_mu_max+0.25*abs(der_del_mu)],color = 'k')
                 
                 # Add reference lines if appropriate
-                if not ref_lines == None:
+                if ref_lines != None:
                     for line in ref_lines:
-                        ax2.plot([line, line], [der_mu_min-0.25*abs(der_del_mu), der_mu_max+0.25*abs(der_del_mu)], color = 'r')
+                        ax2.axvline(line, color = 'r')
+                        #ax2.plot([line, line], [der_mu_min-0.25*abs(der_del_mu), der_mu_max+0.25*abs(der_del_mu)], color = 'r')
             
         if not overlay:
             
@@ -258,13 +263,15 @@ def plot_XANES(larch_groups, emin, emax, spectra = 'mu', deriv = True, e0 = None
             ax1.set_ylabel(spectra)
             
             # Add E0 line if appropriate
-            if e0_line:
-                ax1.plot([e0, e0], [mu_min, mu_max], color = 'k')
+            if e0_line and e0 != None:
+                ax1.axvline(e0, colo = 'k')
+                #ax1.plot([e0, e0], [mu_min, mu_max], color = 'k')
                 
             # Add reference lines if appropriate
-            if not ref_lines == None:
+            if ref_lines != None:
                 for line in ref_lines:
-                    ax1.plot([line, line], [mu_min, mu_max], color = 'r')
+                    ax1.axvline(line, color = 'r')
+                    #ax1.plot([line, line], [mu_min, mu_max], color = 'r')
         
             # Add Deriv Subplot + Data
             if deriv:
@@ -292,13 +299,15 @@ def plot_XANES(larch_groups, emin, emax, spectra = 'mu', deriv = True, e0 = None
                 ax2.set_ylabel(f'd{spectra}/dE')
                 
                 # Add E0 line if appropriate
-                if e0_line:
-                    ax2.plot([e0, e0],[der_mu_min-0.25*abs(der_del_mu), der_mu_max+0.25*abs(der_del_mu)],color = 'k')
+                if e0_line and e0 != None:
+                    ax2.axvline(e0, color = 'k')
+                    #ax2.plot([e0, e0],[der_mu_min-0.25*abs(der_del_mu), der_mu_max+0.25*abs(der_del_mu)],color = 'k')
                 
                 # Add reference lines if appropriate
-                if not ref_lines == None:
+                if ref_lines != None:
                     for line in ref_lines:
-                        ax2.plot([line, line], [der_mu_min-0.25*abs(der_del_mu), der_mu_max+0.25*abs(der_del_mu)], color = 'r')
+                        ax2.axvline(line, color = 'r')
+                        #ax2.plot([line, line], [der_mu_min-0.25*abs(der_del_mu), der_mu_max+0.25*abs(der_del_mu)], color = 'r')
                         
     return
     

@@ -538,15 +538,22 @@ class Experiment:
         return
 
     
-    def calibrate_reference_spectra(self, edge_energy, energy_range=20, use_mean = True, overlay = True, data_filtering = True, plot_filtering = True, window_length = 5, polyorder = 2):
+    def calibrate_reference_spectra(self, edge_energy, energy_range=[-20,20], plot_range = 20, use_mean = True, overlay = True, data_filtering = True, plot_filtering = True, window_length = 5, polyorder = 2):
         '''
         Calibrates the reference channel spectra based upon edge_energy provided
         sets reference energy e0 to edge_energy
         shifts sample + reference energy scales based upon average edge energy position
         '''
-        # Set energy range for plotting     
-        emin = edge_energy-energy_range
-        emax = edge_energy+energy_range
+        if type(energy_range) == float or type(energy_range) == int:
+            energy_range = [-1*energy_range, energy_range]
+        
+        # Reference Lines for defining bounds of where the edge was looked for
+        emin1 = edge_energy+energy_range[0]
+        emax1 = edge_energy+energy_range[1]
+        
+        
+        emin = edge_energy-plot_range
+        emax = edge_energy+plot_range   
         
         e0_list = []
         delE_list = []
@@ -601,7 +608,7 @@ class Experiment:
         
         # Plot Data
         pfcts.plot_XANES(groups, emin, emax, spectra = 'mu', 
-                         deriv = True, e0 = None, e0_line = True, ref_lines = edge_energy,
+                         deriv = True, e0 = None, e0_line = True, ref_lines = [emin1, emax1],
                          overlay = overlay, use_legend = False, 
                          filtering = plot_filtering, window_length = window_length, polyorder = polyorder)
         

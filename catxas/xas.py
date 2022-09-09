@@ -142,7 +142,7 @@ def create_larch_spectrum(photon_energy, numerator, denominator, log=True, flip 
     
     return spectrum
 
-def calculate_spectrum_e0(larch_group, edge_energy, energy_range = 20, set_E0 = True, filtering = True, window_length = 5, polyorder = 2):
+def calculate_spectrum_e0(larch_group, edge_energy, energy_range = [-20, 20], set_E0 = True, filtering = True, window_length = 5, polyorder = 2):
     '''
     Finds the "Edge position" defined by the maximum in the first derivative.
     Note: No data smoothing applied when finding the value.
@@ -167,8 +167,11 @@ def calculate_spectrum_e0(larch_group, edge_energy, energy_range = 20, set_E0 = 
 
     '''
     
-    emin = edge_energy-energy_range
-    emax = edge_energy+energy_range
+    if type(energy_range) == float or type(energy_range) == int:
+        energy_range = [-1*energy_range, energy_range]
+    
+    emin = edge_energy+energy_range[0]
+    emax = edge_energy+energy_range[1]
     
     energy = larch_group.energy + larch_group.delE # Adds any energy shift to the system
     
@@ -223,7 +226,9 @@ def CXAS_Sorted(files_directory, time_stamp = True, time_line = 0, time_format =
     '''
     
     # Use glob2 to get a list of all files in files_directory
-    files = glob2.glob(files_directory + '/**/*/*')
+    # Added Recursive test to work with folders of data
+    files = glob2.glob(files_directory+'/**/*', recursive=True)
+    #files = glob2.glob(files_directory)
     
     
     path_series = pd.Series(files)
