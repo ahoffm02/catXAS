@@ -168,6 +168,7 @@ def plot_XANES(larch_groups, emin, emax, spectra = 'mu', deriv = True, e0 = None
             
             # Add E0 line if appropriate
             if e0_line and e0 != None:
+                #print('adding e0 line')
                 ax1.axvline(e0, color = 'k')
                 #ax1.plot([e0, e0], [mu_min, mu_max], color = cmap(i))
                 
@@ -264,7 +265,7 @@ def plot_XANES(larch_groups, emin, emax, spectra = 'mu', deriv = True, e0 = None
             
             # Add E0 line if appropriate
             if e0_line and e0 != None:
-                ax1.axvline(e0, colo = 'k')
+                ax1.axvline(e0, color = 'k')
                 #ax1.plot([e0, e0], [mu_min, mu_max], color = 'k')
                 
             # Add reference lines if appropriate

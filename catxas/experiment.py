@@ -191,10 +191,8 @@ class Experiment:
             self.spectra[filename]['BL Data'] = read_ascii(file_path, labels=col_names)
             
             self.spectra[filename]['BL Data'].__name__ = filename
-            
-            ### FLIP FUNCTION TO TEST AND CORRECT BACKWARDS DATA
-            
-            # Determine the enregy values at teh start/end fo the dataset
+                        
+            # Determine the enregy values at the start/end of the dataset
             Einit = self.spectra[filename]['BL Data'].__dict__[energy_name][0]
             Efin = self.spectra[filename]['BL Data'].__dict__[energy_name][-1]
             
@@ -203,8 +201,7 @@ class Experiment:
                 for line in col_names:
                     self.spectra[filename]['BL Data'].__dict__[line] = np.flipud(self.spectra[filename]['BL Data'].__dict__[line])
 
-            ### END FLIP TEST
-        
+            
         return
     
     #################################
@@ -237,71 +234,6 @@ class Experiment:
     ##### Spectra Interrogation Functions #####
     
     ###########################################
-    
-    def summarize_file_lengths(self, deviation = 5):
-        column_names = ["Filename", "Data Points"]
-        df = pd.DataFrame(columns = column_names)
-        
-        for key in self.spectra.keys():
-            df2 = {"Filename": key, "Data Points": len(self.spectra[key]['BL Data'].Energy)}
-            df = df.append(df2, ignore_index = True)
-            
-        df2 = df.sort_values('Data Points', axis=0, ascending=True)
-        mean_dpts = df['Data Points'].mean()
-        stdev_dpts = df['Data Points'].std()
-        low_threshold = mean_dpts-deviation*stdev_dpts
-        high_threshold = mean_dpts+deviation*stdev_dpts
-        
-        lowPts_df = df[df['Data Points']<low_threshold]
-        highPts_df = df[df['Data Points']>high_threshold]
-        
-        badPts_df = pd.concat([lowPts_df,highPts_df], axis =0, ignore_index= True)
-        
-        print(f'Range of Data Points per Raw Spectrum: {df["Data Points"].min()}-{df["Data Points"].max()}')
-        print(f'Average Number of Data Points per Raw Spectrum: {df["Data Points"].mean()}')
-        print(f'Standard Deviation of Number of Data Points per Raw Spectrum: {df["Data Points"].std()}')
-        print(f'Number of spectra with datapoints less than {deviation} standard deviations from mean: {len(lowPts_df.index)}')
-        print(f'Number of spectra with datapoints greater than {deviation} standard deviations from mean: {len(highPts_df.index)}')
-        print('\n\n')
-        print(f'Spectra with datapoints less than {deviation} standard deviations from mean:')
-        print('\n')
-        print(lowPts_df)
-        print('\n\n')
-        print(f'Spectra with datapoints greater than {deviation} standard deviations from mean:')
-        print('\n')
-        print(highPts_df)
-        print('\n')
-        
-        return df, mean_dpts, stdev_dpts, badPts_df  
-            
-    def remove_bad_spectra(self, spectra_list):
-        '''
-        Removes spectra files contained in spectra_list from (1) self.spectra and (2) lines form self.summary['XAS Spectra Files']
-        Adds a list in self.summary to indicate spectra removed in this step.
-        
-        Parameters
-        ----------
-        spectra_list : LIST
-            List of filenames to remove from experiment class
-
-        Returns
-        -------
-        None.
-
-        '''
-    
-        for line in spectra_list:
-            # Removes the spectra from the *.spectra dictionary
-            self.spectra.pop(line, None)
-            
-            # Removes the spectra from the 'XAS Spectra Files' dataframe
-            self.summary['XAS Spectra Files'] = self.summary['XAS Spectra Files'][self.summary['XAS Spectra Files']['File Name'] != line]        
-    
-        if 'Spectra Removed' in self.summary:
-            self.summary['Spectra Removed'].append(spectra_list)
-        else:
-            self.summary['Spectra Removed'] = spectra_list
-    
     
     def organize_RawData(self, remove_duplicates = True, remove_nan_inf = True, remove_zeros = True):
         '''
@@ -370,6 +302,166 @@ class Experiment:
             print('Zero data points removed')
             print(f'Range of data points per pre-zero spectra: {Z_pts_arr[:,0].min()}-{Z_pts_arr[:,0].max()}')
             print(f'Range of data points per zero removed spectra: {Z_pts_arr[:,1].min()}-{Z_pts_arr[:,1].max()}')
+        
+    
+    def data_length_screen(self, deviations = 3, print_summary = True):
+        # Extract all the data points in each spectrum for interrogation
+        fnames = []
+        datapts = []
+                
+        for key in self.spectra.keys():
+            fnames.append(key)
+            datapts.append(len(self.spectra[key]['BL Data'].Energy))
+        
+        datapts_df = pd.concat([pd.Series(fnames, name='Filename'), pd.Series(datapts, name='Data Points')], axis = 1)                   
+
+        # Determine the statistical characteristics of the data points
+        mean_dpts = datapts_df['Data Points'].mean()
+        stdev_dpts = datapts_df['Data Points'].std()
+        
+        # Set Threshold limits
+        low_pts = mean_dpts-deviations*stdev_dpts
+        high_pts = mean_dpts+deviations*stdev_dpts
+        
+        # extract all spectra that are outside of the edge step threshold 
+        problem_spectra = datapts_df[(datapts_df['Data Points']<low_pts) | (datapts_df['Data Points']>high_pts)]
+        
+        # Write out what was tested and what as found
+        if print_summary:
+            print("\u0332".join("Spectra Data Lenght Characteristics:"))
+            print(f'\tSpectra interrogated: {len(datapts_df)}')
+            print(f'\tLongest Data Set: {datapts_df["Data Points"].max()} data points')
+            print(f'\tShortest Data Set: {datapts_df["Data Points"].min()} data points')
+            print(f'\tMean Data Points per Spectrum: {mean_dpts:0.0f}')
+            print(f'\tDeviation in Data Points: {stdev_dpts:0.0f}')
+            print('\n')
+            
+            print("\u0332".join("Problematic Spectra:"))
+            print(f'\tNumber of Spectra: {len(problem_spectra)}')
+            for index, row in problem_spectra.iterrows():
+                    print(f'\t\t{row.to_string(header=False, index=False)}')
+            
+        # Returns df of bad spectra with their edge steps
+        return problem_spectra  
+            
+    
+    def edge_step_screen(self, deviations = 3, print_summary = True, show_problem_spectra = True):
+        # Extract all the edge steps for interrogation
+        fnames = []
+        steps = []
+    
+        for key in self.spectra.keys():
+            fnames.append(key)
+            steps.append(self.spectra[key]['Absorption Spectra']['mu Sample'].edge_step)
+    
+        edge_step_df = pd.concat([pd.Series(fnames, name='Filename'), pd.Series(steps, name='Edge Step')], axis = 1)
+        
+        # Determine the statistical characteristics of the edge steps
+        mean_step = edge_step_df['Edge Step'].mean()
+        stdev_step = edge_step_df['Edge Step'].std()
+        
+        # Set Threshold limits
+        low_step = mean_step-deviations*stdev_step
+        high_step = mean_step+deviations*stdev_step
+        
+        # extract all spectra that are outside of the edge step threshold 
+        problem_spectra = edge_step_df[(edge_step_df['Edge Step']<low_step) | (edge_step_df['Edge Step']>high_step)]
+        
+        # Write out what was tested and what as found
+        if print_summary:
+            print("\u0332".join("Edge Step Characteristics:"))
+            print(f'\tSpectra interrogated: {len(edge_step_df)}')
+            print(f'\tLargest Edge Step: {edge_step_df["Edge Step"].max():0.3f}')
+            print(f'\tSmallest Edge Step: {edge_step_df["Edge Step"].min():0.3f}')
+            print(f'\tMean Edge Step: {mean_step:0.3f}')
+            print(f'\tDeviation in Edge Step: {stdev_step:0.3f}')
+            print('\n')
+            print("\u0332".join("Problematic Spectra:"))
+            print(f'\tNumber of Spectra: {len(problem_spectra)}')
+            for index, row in problem_spectra.iterrows():
+                    print(f'\t\t{row.to_string(header=False, index=False)}')
+            
+        # Plot bad spectra if requested
+        if show_problem_spectra:
+            for line in problem_spectra.Filename:
+                x = self.spectra[line]['Absorption Spectra']['mu Sample'].energy
+                y = self.spectra[line]['Absorption Spectra']['mu Sample'].mu
+                plt.plot(x,y,label = line)
+                if len(problem_spectra) <=10:                
+                    plt.legend()
+            
+        # Returns df of bad spectra with their edge steps
+        return problem_spectra
+    
+    def remove_bad_spectra(self, spectra_list, test_removal = True):
+        '''
+        Removes spectra files contained in spectra_list from (1) self.spectra, (2) lines form self.summary['XAS Spectra Files'], 
+        and (3) self.summary['XAS Spectra Process Params'] (if it exists)
+        
+        Adds/appends a list in self.summary to indicate spectra removed in this step.
+        
+        Parameters
+        ----------
+        spectra_list : LIST
+            List of filenames to remove from experiment class
+
+        Returns
+        -------
+        None.
+
+        '''
+        # Test to see if Process Params Summary df exists
+        try:
+            self.summary['XAS Spectra Process Params']
+        except KeyError:
+            ParamSummary_exists = False
+        else:
+            ParamSummary_exists = True
+        
+    
+        for line in spectra_list:
+            print(f'Removing {line}')
+            
+            # Removes the spectra from the *.spectra dictionary
+            self.spectra.pop(line, None)
+            
+            # Removes the spectra from the 'XAS Spectra Files' dataframe
+            self.summary['XAS Spectra Files'] = self.summary['XAS Spectra Files'][self.summary['XAS Spectra Files']['File Name'] != line]
+            
+            # Removed the spectra from the 'XAS Spectra Process Params' dataframe if it exists
+            if ParamSummary_exists:
+                self.summary['XAS Spectra Process Params'] = self.summary['XAS Spectra Process Params'][self.summary['XAS Spectra Process Params']['File Name'] != line]
+            
+            # Test to see if the spectrum has been removed from the spectra list and 1-2 summary files:
+            if test_removal:
+                try:
+                    self.spectra[line]
+                except KeyError:
+                    print('\tRemoved from Spectra')
+                else:
+                    pass
+        
+                try:
+                    self.summary['XAS Spectra Files'][line]
+                except KeyError:
+                    print('\tRemoved from the summary: "XAS Spectra Files')
+                else:
+                    pass
+        
+                if ParamSummary_exists:         
+                    try:
+                        self.summary['XAS Spectra Process Params'][line]
+                    except KeyError:
+                        print('\tRemoved from the summary: "XAS Spectra Process Params"')
+                    else:
+                        pass   
+
+        if 'Spectra Removed' in self.summary:
+            self.summary['Spectra Removed'].append(spectra_list)
+            print('Spectra Removed list has been updated')
+        else:
+            self.summary['Spectra Removed'] = spectra_list
+            print('Spectra Removed list has been created in Summary')
     
     
     def check_Energy_Range(self, spectra_name = 'mu Sample', has_e0 = False, print_summary = True):
@@ -738,6 +830,19 @@ class Experiment:
             for key2 in param_dict.keys():
                 self.spectra[key1]['Absorption Spectra'][spectra_name].__dict__[key2] = param_dict[key2]
 
+    def remove_BLData(self):
+        '''
+        Removes the raw data that was imported
+
+        Returns
+        -------
+        None.
+
+        '''
+        for key in self.__dict__['spectra'].keys():
+            self.__dict__['spectra'][key].pop('BL Data')
+    
+        print('Beamline data removed from experiment')
     
     #################################   
     
@@ -1001,17 +1106,18 @@ class Experiment:
     ### Multi - Plotting Fucntions
     
     
-    def plot_XANES_spectra(self, emin, emax, samp_ref = 'mu Reference', spectra = 'mu', deriv = True, e0 = None, e0_line = True):
+    def plot_XANES_spectra(self, emin, emax, samp_ref = 'mu Reference', spectra = 'mu', deriv = True, e0 = None, e0_line = True, ref_lines = None, overlay = True, use_legend = True, cmap_name = 'brg', filtering = True, window_length = 5, polyorder = 2):
         
         larch_groups = []
         
         for key in self.spectra.keys():
             larch_groups.append(self.spectra[key]['Absorption Spectra'][samp_ref])
 
-        pfcts.plot_XANES(larch_groups, emin, emax, spectra = spectra, deriv = deriv, e0 = e0, e0_line = e0_line)
+        pfcts.plot_XANES(larch_groups, emin, emax, spectra = spectra, deriv = deriv, e0 = e0, e0_line = e0_line, ref_lines = ref_lines, overlay = overlay, use_legend = use_legend, cmap_name = cmap_name, filtering = filtering, window_length = window_length, polyorder = polyorder)
     
     
     def plot_SampRef_XANES(self, emin, emax, spectra = 'mu'):
+        ### depreciated
         
         Samp_group = []
         Ref_group = []
