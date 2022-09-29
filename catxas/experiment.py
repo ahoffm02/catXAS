@@ -21,6 +21,7 @@ import numpy as np
 # X-ray Science
 import larch
 from larch.io import read_ascii
+from larch.io import merge_groups
 
 
 # Plotting
@@ -33,6 +34,84 @@ import xas as xfcts
 import plot as pfcts
 import process
 
+##############################################################################
+
+            # EXPERIMENTAL CLASS Operating Functions #
+                        
+##############################################################################
+
+def groups_lists(exp, spectra_name_list, spectra_name = 'mu sample'):
+    grp_list = []
+    for key in exp.spectra.keys():
+        if key in spectra_name_list:
+            grp_list.append(exp.spectra[key]['Absorption Spectra'][spectra_name])
+    
+    return grp_list
+
+
+def process_concat(exp, spectra_name_list):
+    process_df_list = []
+    for key in exp.spectra.keys():
+        if key in spectra_name_list:
+            process_df_list.append(exp.spectra[key]['Process Values'])
+            
+    process_df = pd.concat(process_df_list)
+    
+    process_df.drop(columns=['File Name'], inplace = True)
+    
+    process_df.reset_index(drop = True, inplace = True)
+    
+    return process_df
+
+def time_lists(exp, spectra_name_list):
+    time_list = []
+    for key in exp.spectra.keys():
+        if key in spectra_name_list:
+            time_list.append(exp.spectra[key]['Time'])
+            
+    return time_list
+
+def merge_spectra(exp, spectra_name_list, xarray = 'energy', yarray = 'mu'):
+    
+    # Create List of Groups [Sample and Ref]
+    S_grp_list = groups_lists(exp, spectra_name_list, spectra_name = 'mu Sample')
+    R_grp_list = groups_lists(exp, spectra_name_list, spectra_name = 'mu Reference')
+    
+    
+    # Create list of Process Parameters
+    process_params = process_concat(exp, spectra_name_list)
+    
+    # Create list of Timestamps
+    time_list = time_lists(exp, spectra_name_list)
+    
+    # Calculate the mean absorption spectra [Sample and Ref]
+    S_grp_mean = merge_groups(S_grp_list, master = None, 
+                          xarray = xarray, yarray = yarray, 
+                          kind = 'cubic', trim = True, calc_yerr = True)
+    
+    R_grp_mean = merge_groups(R_grp_list, master = None, 
+                          xarray = xarray, yarray = yarray, 
+                          kind = 'cubic', trim = True, calc_yerr = True)
+    
+    # Calculate the mean Process Paramters
+    process_mean = process_params.mean(axis = 0)
+    
+    # Calculate the mean Timestamp
+    time_mean = pd.Timestamp(np.mean([i.timestamp() for i in time_list]), unit = 's')
+    
+    # Rename group based upon TOS [Sample and Ref]
+    S_grp_mean.__name__ = f'{process_mean["TOS [s]"]:0.2f} s'
+    R_grp_mean.__name__ = f'{process_mean["TOS [s]"]:0.2f} s - Ref'
+    
+    
+    # Create Spectra dictionary for experiment class
+    spectra_dict = {'XAS Data Structure': None, 
+                    'Time': time_mean, 
+                    'Absorption Spectra':{'mu Sample': S_grp_mean, 'mu Reference': R_grp_mean},
+                    'Process Values':process_mean
+                   }
+    
+    return spectra_dict
 
 ##############################################################################
 

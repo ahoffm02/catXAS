@@ -24,15 +24,52 @@ from scipy.signal import savgol_filter
 #From Catxas
 import general as fcts
 
+
+##############################################################################
+
+                        # Generic Plotting FUNCTIONS #
+                        
+##############################################################################
+
+def get_cmap(n, name='brg'):
+    '''Returns a function that maps each index in 0, 1, ..., n-1 to a distinct 
+    RGB color; the keyword argument name must be a standard mpl colormap name.'''
+    return plt.cm.get_cmap(name, n)
+
+
+def plot_XYs_Vline(xy_list, vline_pos, emin, emax, axis_label = ['Photon Energy (eV)','Norm mux'], size = [12, 10]):
+    
+    # Colors:
+    cmap = get_cmap(len(xy_list), name = 'Set1')    
+    
+    # Set up plot   
+    fig1 = plt.figure(constrained_layout=True, figsize = (size[0], size[1]))
+    spec1 = gridspec.GridSpec(ncols = 1, nrows = 1, figure = fig1)
+    ax1 = fig1.add_subplot(spec1[0,0])
+    
+    for i in range(len(xy_list)):
+        
+        x = xy_list[i][0]
+        y = xy_list[i][1]
+        
+        ax1.plot(x, y, color = cmap(i), linestyle = 'solid')
+        
+    ax1.axvline(vline_pos, color = 'k')
+    
+    # Set Plot Formatting
+    ax1.set_xlim([emin, emax])
+    ax1.set_xlabel(axis_label[0])
+    ax1.set_ylabel(axis_label[1])
+    
+    return    
+
+
+
 ##############################################################################
 
                         # XAS Plotting FUNCTIONS #
                         
 ##############################################################################
-def get_cmap(n, name='brg'):
-    '''Returns a function that maps each index in 0, 1, ..., n-1 to a distinct 
-    RGB color; the keyword argument name must be a standard mpl colormap name.'''
-    return plt.cm.get_cmap(name, n)
 
 
 def plot_XANES(larch_groups, emin, emax, spectra = 'mu', deriv = True, e0 = None, e0_line = True, ref_lines = None, overlay = True, use_legend = True, cmap_name = 'brg', filtering = True, window_length = 5, polyorder = 2):

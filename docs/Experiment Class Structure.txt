@@ -73,4 +73,6 @@ My Experiment (Experiment Class)
 			|
 			|
 			|--> XAS Spectra Process Params (pandas DataFrame)
-	
+			|
+			|
+			|--> Spectra Removed (list)

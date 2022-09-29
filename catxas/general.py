@@ -140,3 +140,18 @@ def mergeindex(df1, df2, method = 'time'):
     df2 = df2.reindex(df2.index.union(df1.index)).interpolate(method=method, limit_area = None).reindex(df1.index)
     
     return df2
+
+def parse_list(m, n):
+    '''
+    m = list of names
+    
+    n = how many items should be grouped together
+    
+    last value is a list of remainders
+    
+    returns a list of lists (lenght n) with the last list the modulo m%n (remainder)
+    '''
+    # using list comprehension
+    x = [m[i:i + n] for i in range(0, len(m), n)]
+    
+    return x
