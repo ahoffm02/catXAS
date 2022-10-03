@@ -384,49 +384,75 @@ class Experiment:
         
     
     def data_length_screen(self, deviations = 3, print_summary = True):
-        # Extract the number of data points and the starting E value in each spectrum for interrogation
+        # Extract the number of data points and the starting and ending E value in each spectrum for interrogation
         fnames = []
         datapts = []
-        Ept1 = []
+        Estart = []
+        Eend = []
                 
         for key in self.spectra.keys():
             fnames.append(key)
             datapts.append(len(self.spectra[key]['BL Data'].Energy))
-            Ept1.append(self.spectra[key]['BL Data'].Energy[0])
+            Estart.append(self.spectra[key]['BL Data'].Energy[0])
+            Eend.append(self.spectra[key]['BL Data'].Energy[-1])
+            
+        data_dict = {'Filename': fnames,
+                   'Data Points': datapts,
+                   'Start Energy': Estart,
+                   'End Energy': Eend}
         
-        datapts_df = pd.concat([pd.Series(fnames, name='Filename'), pd.Series(datapts, name='Data Points'), pd.Series(Ept1, name='First Energy Point')], axis = 1)                   
+        data_df = pd.DataFrame(data_dict) 
 
         # Determine the statistical characteristics of the data points
-        mean_dpts = datapts_df['Data Points'].mean()
-        stdev_dpts = datapts_df['Data Points'].std()
+        mean_dpts = data_df['Data Points'].mean()
+        stdev_dpts = data_df['Data Points'].std()
         
-        # Determine the statistical characteristics of the starting enregy data points
-        mean_Ept = datapts_df['First Energy Point'].mean()
-        stdev_Ept = datapts_df['First Energy Point'].std()
+        # Determine the statistical characteristics of the starting energy values
+        mean_Estart = data_df['Start Energy'].mean()
+        stdev_Estart = data_df['Start Energy'].std()
+        
+        # Determine the statistical characteristics of the starting energy values
+        mean_Eend = data_df['End Energy'].mean()
+        stdev_Eend = data_df['End Energy'].std()
         
         # Set Threshold limits
         low_pts = mean_dpts-deviations*stdev_dpts
         high_pts = mean_dpts+deviations*stdev_dpts
         
-        low_E_pt = mean_Ept-deviations*stdev_Ept
-        high_Ept = mean_Ept+deviations*stdev_Ept
+        low_Estart = mean_Estart-deviations*stdev_Estart
+        high_Estart = mean_Estart+deviations*stdev_Estart
+        
+        low_Eend = mean_Eend-deviations*stdev_Eend
+        high_Eend = mean_Eend+deviations*stdev_Eend
         
         # extract all spectra that are outside of the data point threshold 
-        problem_spectra = datapts_df[(datapts_df['Data Points']<low_pts) | (datapts_df['Data Points']>high_pts) | (datapts_df['First Energy Point']<low_E_pt) | (datapts_df['First Energy Point']>high_Ept) ] #
+        problem_spectra = data_df[(data_df['Data Points']<low_pts) | 
+                                     (data_df['Data Points']>high_pts) | 
+                                     (data_df['Start Energy']<low_Estart) | 
+                                     (data_df['Start Energy']>high_Estart) | 
+                                     (data_df['End Energy']<low_Eend) | 
+                                     (data_df['End Energy']>high_Eend)]
         
         # Write out what was tested and what as found
         if print_summary:
             print("\u0332".join("Spectra Data Length/Starting Energy Characteristics:"))
-            print(f'\tSpectra interrogated: {len(datapts_df)}')
-            print(f'\tLongest Data Set: {datapts_df["Data Points"].max()} data points')
-            print(f'\tShortest Data Set: {datapts_df["Data Points"].min()} data points')
+            print('\n')
+            print(f'\tSpectra interrogated: {len(data_df)}')
+            print('\n')
+            print(f'\tLongest Data Set: {data_df["Data Points"].max()} data points')
+            print(f'\tShortest Data Set: {data_df["Data Points"].min()} data points')
             print(f'\tMean Data Points per Spectrum: {mean_dpts:0.0f}')
             print(f'\tDeviation in Data Points: {stdev_dpts:0.0f}')
             print('\n')
-            print(f'\tLargest Starting Energy: {datapts_df["First Energy Point"].max()} eV')
-            print(f'\tSmallest Starting Energy: {datapts_df["First Energy Point"].min()} eV')
-            print(f'\tMean Starting Enregy: {mean_Ept:0.0f}')
-            print(f'\tDeviation in Starting Energy: {stdev_Ept:0.0f}')
+            print(f'\tLargest Starting Energy: {data_df["Start Energy"].max()} eV')
+            print(f'\tSmallest Starting Energy: {data_df["Start Energy"].min()} eV')
+            print(f'\tMean Starting Enregy: {mean_Estart:0.0f}')
+            print(f'\tDeviation in Starting Energy: {stdev_Estart:0.0f}')
+            print('\n')
+            print(f'\tLargest Starting Energy: {data_df["End Energy"].max()} eV')
+            print(f'\tSmallest Starting Energy: {data_df["End Energy"].min()} eV')
+            print(f'\tMean Starting Enregy: {mean_Eend:0.0f}')
+            print(f'\tDeviation in Starting Energy: {stdev_Eend:0.0f}')
             print('\n')
             
             
