@@ -384,41 +384,63 @@ class Experiment:
         
     
     def data_length_screen(self, deviations = 3, print_summary = True):
-        # Extract all the data points in each spectrum for interrogation
+        # Extract the number of data points and the starting E value in each spectrum for interrogation
         fnames = []
         datapts = []
+        Ept1 = []
                 
         for key in self.spectra.keys():
             fnames.append(key)
             datapts.append(len(self.spectra[key]['BL Data'].Energy))
+            Ept1.append(self.spectra[key]['BL Data'].Energy[0])
         
-        datapts_df = pd.concat([pd.Series(fnames, name='Filename'), pd.Series(datapts, name='Data Points')], axis = 1)                   
+        datapts_df = pd.concat([pd.Series(fnames, name='Filename'), pd.Series(datapts, name='Data Points'), pd.Series(Ept1, name='First Energy Point')], axis = 1)                   
 
         # Determine the statistical characteristics of the data points
         mean_dpts = datapts_df['Data Points'].mean()
         stdev_dpts = datapts_df['Data Points'].std()
         
+        # Determine the statistical characteristics of the starting enregy data points
+        mean_Ept = datapts_df['First Energy Point'].mean()
+        stdev_Ept = datapts_df['First Energy Point'].std()
+        
         # Set Threshold limits
         low_pts = mean_dpts-deviations*stdev_dpts
         high_pts = mean_dpts+deviations*stdev_dpts
         
-        # extract all spectra that are outside of the edge step threshold 
-        problem_spectra = datapts_df[(datapts_df['Data Points']<low_pts) | (datapts_df['Data Points']>high_pts)]
+        low_E_pt = mean_Ept-deviations*stdev_Ept
+        high_Ept = mean_Ept+deviations*stdev_Ept
+        
+        # extract all spectra that are outside of the data point threshold 
+        problem_spectra = datapts_df[(datapts_df['Data Points']<low_pts) | (datapts_df['Data Points']>high_pts) | (datapts_df['First Energy Point']<low_E_pt) | (datapts_df['First Energy Point']>high_Ept) ] #
         
         # Write out what was tested and what as found
         if print_summary:
-            print("\u0332".join("Spectra Data Lenght Characteristics:"))
+            print("\u0332".join("Spectra Data Length/Starting Energy Characteristics:"))
             print(f'\tSpectra interrogated: {len(datapts_df)}')
             print(f'\tLongest Data Set: {datapts_df["Data Points"].max()} data points')
             print(f'\tShortest Data Set: {datapts_df["Data Points"].min()} data points')
             print(f'\tMean Data Points per Spectrum: {mean_dpts:0.0f}')
             print(f'\tDeviation in Data Points: {stdev_dpts:0.0f}')
             print('\n')
+            print(f'\tLargest Starting Energy: {datapts_df["First Energy Point"].max()} eV')
+            print(f'\tSmallest Starting Energy: {datapts_df["First Energy Point"].min()} eV')
+            print(f'\tMean Starting Enregy: {mean_Ept:0.0f}')
+            print(f'\tDeviation in Starting Energy: {stdev_Ept:0.0f}')
+            print('\n')
+            
             
             print("\u0332".join("Problematic Spectra:"))
             print(f'\tNumber of Spectra: {len(problem_spectra)}')
             for index, row in problem_spectra.iterrows():
-                    print(f'\t\t{row.to_string(header=False, index=False)}')
+                for index, value in row.items():
+                    if index == 'Filename':
+                        print(f'\t{(index)}: {value}')
+                    else:
+                        if type(value) == str or type(value) == int:
+                            print(f'\t\t{(index+":").rjust(20)}\t{value}')
+                        elif type(value) == float:
+                            print(f'\t\t{(index+":").rjust(20)}\t{value:0.2f}')
             
         # Returns df of bad spectra with their edge steps
         return problem_spectra  
