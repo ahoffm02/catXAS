@@ -12,6 +12,7 @@ Created on Sat Jul  2 11:20:13 2022
 
 #Other Functions
 import re
+import os
 
 # Timestamps
 from datetime import datetime as dt
@@ -28,6 +29,73 @@ from itertools import islice
                         # Process Stream FUNCTIONS #
                         
 ##############################################################################
+
+def Read_Hiden_QGAPro(filename):
+    """    
+    Reads a XLSX file supplied from the  Hiden Quant Software.
+    
+    filename: string to file containing mass spectrometer data
+    
+    Returns: Pandas dataframe with a datetime index and signals matched with signal value (m/z) 
+    """
+    
+    # generate filename without path and extension
+    base_name = os.path.basename(filename)
+    fname_no_ext = os.path.splitext(base_name)[0]
+    
+    # searching filename for time stamp
+    match_str = re.search('\d+-\d+-\d+ \d+-\d+-\d+ \w+', fname_no_ext)
+  
+    # Convert timestamp string into datetime object
+    time_zero = dt.strptime(match_str.group(), '%m-%d-%Y %I-%M-%S %p')#.date()
+    
+    
+    # Get Metadata Header info and store it in list
+    header = []
+    count = 0
+    with open(filename, 'r') as myfile:
+        for line in myfile:
+            count += 1
+            header.append(line.strip())
+            if line.strip() == 'data':
+                #count += 1
+                break
+  
+    # Close file
+    myfile.close()
+        
+    # Create Dataframe after skipping header lines
+    raw_data = pd.read_csv(filename, sep = ',', skiprows = count, header = [0,1])#, index_col = 0)
+
+    
+    # Fill in missing Headers for multiindex
+    for i in range(len(list(raw_data))):
+        if 'Elapsed' in list(raw_data)[i][0]:
+            raw_data.rename(columns = {list(raw_data)[i][0]:''}, inplace = True, level=0, errors='raise')
+            raw_data.rename(columns = {list(raw_data)[i][1]:''}, inplace = True, level=1, errors='raise')
+        elif "Unnamed:" in list(raw_data)[i][0]:
+            raw_data.rename(columns = {list(raw_data)[i][0]:list(raw_data)[i-1][0]}, inplace = True, level=0, errors='raise')
+            
+    # Set the elapsed time to index
+    raw_data.set_index('', inplace = True)
+    raw_data.rename_axis('Time', axis = 0, inplace = True)    
+    
+        
+    # use time_zero and elapsed time to redefine the index as datatime opbkect
+    
+    new_index = pd.Series(pd.to_timedelta(list(raw_data.index), unit='s'), name = 'Time')
+
+    for i in new_index.index:
+        new_index.iloc[i] = time_zero + new_index.iloc[i]
+        #new_index.iloc[i] = new_index.iloc[i].strftime('%m/%d/%Y %I:%M:%S %p')
+    
+    new_index.rename('Time', inplace = True)
+    
+    raw_data.index._data = new_index.values
+    
+    raw_data.index = pd.to_datetime(raw_data.index)
+    
+    return raw_data
 
 def ReadMSData(filename):
     """    

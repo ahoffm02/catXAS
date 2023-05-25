@@ -195,7 +195,7 @@ def calculate_spectrum_e0(larch_group, edge_energy, energy_range = [-20, 20], se
 
     return e0_pos
 
-def CXAS_Sorted(files_directory, time_stamp = True, time_line = 0, time_format = '%m/%d/%Y %I:%M:%S %p', padded = True, is_QEXAFS = False):
+def CXAS_Sorted(files_directory, ext = '.txt', time_stamp = True, time_line = 0, time_format = '%m/%d/%Y %I:%M:%S %p', padded = True, is_QEXAFS = False):
     '''
     ### GENERAL STATEMENT HERE ###
 
@@ -226,12 +226,9 @@ def CXAS_Sorted(files_directory, time_stamp = True, time_line = 0, time_format =
     '''
     
     # Use glob2 to get a list of all files in files_directory
-    # Added Recursive test to work with folders of data
-    files = glob2.glob(files_directory+'/**/*', recursive=True)
     #files = glob2.glob(files_directory)
-    
-    
-    path_series = pd.Series(files)
+    # Added Recursive test to work with folders of data
+    files = glob2.glob(files_directory+f'/**/*{ext}', recursive=True)
     
     filename_list = []
     padded_list = []
@@ -283,32 +280,78 @@ def CXAS_Sorted(files_directory, time_stamp = True, time_line = 0, time_format =
                     else:
                         count = count + 1
 
+    # Build Series from Lists    
+    path_series = pd.Series(files)    
     filename_series = pd.Series(filename_list)
     padded_series = pd.Series(padded_list)
+    time_series = pd.Series(time_list)
+    
+    #####
+    # Added 02/15/2023 to sort out why some times are negative...
+    
+    temp_dict = {
+        'Time': time_series,
+        'File Name': filename_series,
+        'Padded Name': padded_series,
+        'Path': path_series
+        }
+    
+    TOS = pd.DataFrame(temp_dict)
     
     if time_stamp:
-        time_series = pd.Series(time_list)
-        elapsed_time = time_series - time_series[0]
-        
-        temp_dict = {'Time': time_series, 'TOS [s]': elapsed_time.dt.total_seconds(), 'File Name': filename_series, 'Padded Name': padded_series, 'Path': path_series}
-        
-        TOS = pd.DataFrame(temp_dict)
+        # Arange files by time stamp
         TOS.sort_values(by = 'Time', ignore_index = True, inplace = True)
+        
+        # Determine the time elapses since the first file in seconds
+        elapsed_time = TOS['Time']-TOS.iloc[0].at['Time']
+        elapsed_time = elapsed_time.dt.total_seconds()
+        elapsed_time.rename('TOS [s]', inplace = True)
+        
+        # Add elapsed time to summary
+        TOS = pd.concat([TOS, elapsed_time], axis = 1)
+        
+        # Move TOS column to first column
+        column_to_move = TOS.pop('TOS [s]')
+        # insert column with insert(location, column_name, column_value)
+        TOS.insert(0, 'TOS [s]', column_to_move)
+        
+        # Set Index to timestamp of file
         TOS.set_index('Time', inplace = True)
     
     else:
-        time_series = pd.Series(time_list)
-        
-        temp_dict = {
-            'Time': time_series,
-            'File Name': filename_series,
-            'Padded Name': padded_series,
-            'Path': path_series
-            }
-        
-        TOS = pd.DataFrame(temp_dict)
         TOS.sort_values(by = 'Padded Name', ignore_index = True, inplace = True)
         TOS.index.rename('Scan', inplace = True)
+            
+    
+    #####
+    
+    # Removed 2/15/2023 for upgrade above
+    
+    #if time_stamp:
+    #    time_series = pd.Series(time_list)
+    #    elapsed_time = time_series - time_series[0]
+        
+    #    temp_dict = {'Time': time_series, 'TOS [s]': elapsed_time.dt.total_seconds(), 'File Name': filename_series, 'Padded Name': padded_series, 'Path': path_series}
+        
+    #    TOS = pd.DataFrame(temp_dict)
+    #    TOS.sort_values(by = 'Time', ignore_index = True, inplace = True)
+    #    TOS.set_index('Time', inplace = True)
+    
+    #else:
+    #    time_series = pd.Series(time_list)
+        
+    #    temp_dict = {
+    #        'Time': time_series,
+    #        'File Name': filename_series,
+    #        'Padded Name': padded_series,
+    #        'Path': path_series
+    #        }
+        
+    #    TOS = pd.DataFrame(temp_dict)
+    #    TOS.sort_values(by = 'Padded Name', ignore_index = True, inplace = True)
+    #    TOS.index.rename('Scan', inplace = True)
+    
+    #####
         
     return TOS
 
