@@ -20,7 +20,7 @@ This is a modified set of installation notes from the xraylarch source (https://
 2.	Create a dedicated python 3.9.10 environment (name = catxas) to install Larch into and activate it:
 
         conda create -y --name catXAS python=>3.9.10
-        conda activate xraylarch
+        conda activate catXAS
 
 3.	Install the main dependencies:
 
