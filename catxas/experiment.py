@@ -1077,7 +1077,7 @@ class Experiment:
     
     ####################################
     
-    def save_normalize_spectra(self, output_directory):
+    def save_normalize_spectra(self, output_directory, sep = ',', na_rep='', header = True, index = True):
         # Define filename of results:
         fname_normspectra = self.name + '_NormalizedSpectra.csv'
         
@@ -1094,12 +1094,12 @@ class Experiment:
                 
                 normalized_df = pd.concat([normalized_df, temp_df], axis = 1)
         
-        normalized_df.to_csv(output_path, sep=',', na_rep='', header=True, index=True)
+        normalized_df.to_csv(output_path, sep=sep, na_rep=na_rep, header=header, index=index)
         
         return
              
     
-    def save_interpXAS(self, fname_interpXAS):
+    def save_interpXAS(self, fname_interpXAS, ext = '.csv', sep = ',', na_rep='', header = True, index = True):
         '''
         Saves the xas-process correlation dataframe to csv
 
@@ -1120,10 +1120,10 @@ class Experiment:
         # Add extension if it is missing one.
         if file_extension == '':
             
-                fname_interpXAS = fname_interpXAS + '.csv'
+                fname_interpXAS = fname_interpXAS + ext
                 
         # Save the data
-        self.summary['Interpolated energy'].to_csv(fname_interpXAS, sep=',', na_rep='', header=True, index=True)
+        self.summary['Interpolated energy'].to_csv(fname_interpXAS, sep=sep, na_rep=na_rep, header=header, index=index)
     
         print('Process Parameter Data Saved')
     
