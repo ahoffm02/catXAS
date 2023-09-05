@@ -27,8 +27,9 @@ This is a modified set of installation notes from the xraylarch source (https://
         conda install -y "numpy=>1.20" "scipy=>1.6" "matplotlib=>3.0" scikit-learn pandas
         conda install -y -c conda-forge wxpython pymatgen tomopy pycifrw
         pip install glob2
+  	    pip install ipywidgets
 
-4.	install Larch (latest release):
+5.	install Larch (latest release):
 
   	    pip install xraylarch
 
