@@ -126,7 +126,7 @@ def create_larch_spectrum(photon_energy, numerator, denominator, log=True, flip 
     
     
     spectrum.energy = photon_energy
-    spectrum.mu = calc_mu(numerator, denominator, log=True, flip = False)
+    spectrum.mu = calc_mu(numerator, denominator, log=log, flip = flip)
     spectrum.delE = 0.0
     
     Einit = spectrum.energy[0]

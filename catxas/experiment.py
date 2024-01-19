@@ -143,11 +143,17 @@ class Experiment:
         
         return
     
-    ############################
+    ##########################################################################
     
-    ##### Import Functions #####
+    ############################ Import Functions ############################
     
-    ############################
+    ##########################################################################
+    
+    ##############################################
+    
+    ##### Import Process Parameter Functions #####
+    
+    ##############################################
     
     def import_massspec(self, file_name):
         '''
@@ -213,7 +219,48 @@ class Experiment:
         self.summary['Biologic Filename'] = file_name
         
         return
+    
+    def import_process_df(self, process_df, name = 'process_data'):
+        '''
+        Uploads process data in the form of a time-indexed datafram
+
+        Parameters
+        ----------
+        process_df : Pandas Series or Dataframe with a datetime index
+            Pandas Dataframe or Series with a datetime index. Columns represent
+            process data recorded at each time stamp.
+        name : str, optional
+            A name to represent the type of data stored in the dataframe. The default is 'process_data'.
+
+        Returns
+        -------
+        None.
+
+        '''
         
+        # Check if name is already used
+        if name in self.process_params.keys:
+            
+            print('Name of Process data alerady exists. Choose a new name.')
+            
+        # Check if df index is in a datetime format
+        elif isinstance(process_df.index, pd.DatetimeIndex) == False:
+            
+            print('Index of data is not in a datetime format. Redefine the inext and upload again.')
+            
+        # Store the data
+        else:
+            self.process_params[name] = process_df
+            self.summary[name] = f'"{name}" data uploaded as a dataframe and not from a file'
+            
+        return
+        
+    ##############################################
+    
+    ##### Import Spectra Functions #####
+    
+    ##############################################
+    
     def import_spectra_data(self, xas_data_directory, xas_data_structure, print_name = False):
         '''
         Loads XAS data into the spectra dictionary of the experiment class.
@@ -631,12 +678,12 @@ class Experiment:
             if has_e0:
                 df2 = pd.DataFrame([[emin, emax, e0, min_step, max_step, mean_step, std_step]], columns=column_names)
                 
-                df = df.append(df2, ignore_index = True)
+                df = pd.concat([df, df2], axis = 0, ignore_index = True)
                 
             if not has_e0:
                 df2 = pd.DataFrame([[emin, emax, min_step, max_step, mean_step, std_step]], columns=column_names)
                 
-                df = df.append(df2, ignore_index = True)
+                df = pd.concat([df, df2], axis = 0, ignore_index = True)
     
         if print_summary:    
             print(f'Energy Range and Energy-Step Summary for {spectra_name}')
@@ -724,11 +771,6 @@ class Experiment:
 
         '''
         
-        if x_axis == 'energy':
-            y = 'flat'
-        elif x_axis == 'k':
-            y = 'chi'
-        
         # Creat list of values to interpoalte on (stop value inclusive)
         interp_E = np.arange(start, stop+step, step)
         
@@ -740,8 +782,16 @@ class Experiment:
             #Write Select Data into dataframe
             time_step = self.spectra[key]['Time'] 
             
-            data = {x_axis:self.spectra[key]['Absorption Spectra'][sample].__dict__[x_axis],
-                time_step:self.spectra[key]['Absorption Spectra'][sample].__dict__[y]} 
+            if x_axis == 'energy':
+                #y = 'flat'
+                data = {x_axis:self.spectra[key]['Absorption Spectra'][sample].__dict__['energy']+self.spectra[key]['Absorption Spectra'][sample].delE,
+                time_step:self.spectra[key]['Absorption Spectra'][sample].__dict__['flat']}
+            
+            elif x_axis == 'k':
+                #y = 'chi'    
+                data = {x_axis:self.spectra[key]['Absorption Spectra'][sample].__dict__['k']+self.spectra[key]['Absorption Spectra'][sample].delE,
+                time_step:self.spectra[key]['Absorption Spectra'][sample].__dict__['chi']}
+             
             
             temp_df = pd.DataFrame(data)
             temp_df = temp_df.set_index(x_axis)

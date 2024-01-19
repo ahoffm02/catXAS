@@ -117,7 +117,7 @@ def interp_df(df, new_index):
     df_out = pd.DataFrame(index=new_index)
     df_out.index.name = df.index.name
 
-    for colname, col in df.iteritems():
+    for colname, col in df.items():
         df_out[colname] = np.interp(new_index, df.index, col)
 
     return df_out
