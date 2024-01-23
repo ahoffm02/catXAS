@@ -10,7 +10,7 @@ A Python based XAS analysis workflow that also correlates process data streams t
 
 ## Install Larch in dedicated environment (CatXAS) and update dependencies:
 
-This is a modified set of installation notes from the xraylarch source (https://xraypy.github.io/xraylarch/) [updated 9/22/2022]:
+This is a modified set of installation notes from the xraylarch source (https://xraypy.github.io/xraylarch/) [updated 1/23/2024]:
 
 1.	Activate your conda environment (called base by default) and update it:
 
@@ -19,7 +19,7 @@ This is a modified set of installation notes from the xraylarch source (https://
 
 2.	Create a dedicated python 3.10.13 environment (name = catXAS) to install Larch into and activate it:
 
-        conda create -y --name catXAS python=>3.10.13
+        conda create -y --name catXAS python=3.10.13
         conda activate catXAS
 
 3.	Install the main dependencies:
