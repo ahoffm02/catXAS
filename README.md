@@ -27,7 +27,8 @@ This is a modified set of installation notes from the xraylarch source (https://
         conda install -y numpy scipy matplotlib scikit-learn pandas
   	    pip install glob2 ipywidgets wxpython pymatgen
   	    conda install -y -c conda-forge h5py
-  	    conda install -y -c conda-forge openbabel tomopy epicsapps      
+  	    conda install -y -c conda-forge openbabel tomopy
+  	    pip install epicsapps      
 
 5.	install Larch (latest release):
 
