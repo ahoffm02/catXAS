@@ -28,7 +28,8 @@ This is a modified set of installation notes from the xraylarch source (https://
   	    pip install glob2 ipywidgets wxpython pymatgen
   	    conda install -y -c conda-forge h5py
   	    conda install -y -c conda-forge openbabel tomopy
-  	    pip install epicsapps      
+  	    pip install epicsapps
+  	    conda install conda-forge::pycifrw      
 
 5.	install Larch (latest release):
 
