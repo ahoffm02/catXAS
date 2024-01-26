@@ -24,9 +24,9 @@ This is a modified set of installation notes from the xraylarch source (https://
 
 3.	Install the main dependencies:
 
-        conda install -y numpy scipy matplotlib scikit-learn pandas
+        conda install -y numpy scipy matplotlib scikit-learn pandas<2.0.0
   	    pip install glob2 ipywidgets wxpython pymatgen
-  	    conda install -y -c conda-forge h5py
+  	    pip install h5py==3.9.0
   	    conda install -y -c conda-forge openbabel tomopy
   	    pip install epicsapps
   	    conda install conda-forge::pycifrw      
