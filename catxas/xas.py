@@ -226,8 +226,6 @@ def CXAS_Sorted(files_directory, ext = '.txt', time_stamp = True, time_line = 0,
     '''
     
     # Use glob2 to get a list of all files in files_directory
-    #files = glob2.glob(files_directory)
-    # Added Recursive test to work with folders of data
     files = glob2.glob(files_directory+f'/**/*{ext}', recursive=True)
     
     filename_list = []
@@ -322,36 +320,6 @@ def CXAS_Sorted(files_directory, ext = '.txt', time_stamp = True, time_line = 0,
         TOS.sort_values(by = 'Padded Name', ignore_index = True, inplace = True)
         TOS.index.rename('Scan', inplace = True)
             
-    
-    #####
-    
-    # Removed 2/15/2023 for upgrade above
-    
-    #if time_stamp:
-    #    time_series = pd.Series(time_list)
-    #    elapsed_time = time_series - time_series[0]
-        
-    #    temp_dict = {'Time': time_series, 'TOS [s]': elapsed_time.dt.total_seconds(), 'File Name': filename_series, 'Padded Name': padded_series, 'Path': path_series}
-        
-    #    TOS = pd.DataFrame(temp_dict)
-    #    TOS.sort_values(by = 'Time', ignore_index = True, inplace = True)
-    #    TOS.set_index('Time', inplace = True)
-    
-    #else:
-    #    time_series = pd.Series(time_list)
-        
-    #    temp_dict = {
-    #        'Time': time_series,
-    #        'File Name': filename_series,
-    #        'Padded Name': padded_series,
-    #        'Path': path_series
-    #        }
-        
-    #    TOS = pd.DataFrame(temp_dict)
-    #    TOS.sort_values(by = 'Padded Name', ignore_index = True, inplace = True)
-    #    TOS.index.rename('Scan', inplace = True)
-    
-    #####
         
     return TOS
 

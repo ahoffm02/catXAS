@@ -13,6 +13,12 @@ Created on Wed Jun  1 15:14:21 2022
 
 # File Handling
 import os
+import glob2 as glob
+import pickle
+
+# Timestamps
+import datetime
+from datetime import datetime as dt
 
 # Data organization
 import pandas as pd
@@ -34,11 +40,65 @@ import xas as xfcts
 import plot as pfcts
 import process
 
+
 ##############################################################################
 
             # EXPERIMENTAL CLASS Operating Functions #
                         
 ##############################################################################
+
+def open_experiment(fname):
+    '''
+    Opens and experimental class object using pickling
+
+    Parameters
+    ----------
+    fname : STR
+        full path and file name, extension optional to the .pickle file.
+
+    Returns
+    -------
+    my_exp : experiment object
+        experimental class object.
+
+    '''
+    if fname[-7:] == '.pickle':
+        pass
+    else:
+        fname = fname+'.pickle'
+        
+    pickle_in = open(fname,"rb")
+    my_exp = pickle.load(pickle_in)
+    pickle_in.close()
+
+    return my_exp
+
+def save_experiment(experiment, fname):
+    '''
+    Saves and experimental class object using pickling
+
+    Parameters
+    ----------
+    experiment : experiment object
+        experiment class object.
+    fname : STR
+        Path and filename where to save the experimetnal object. Extension optional.
+
+    Returns
+    -------
+    None.
+
+    '''
+    if fname[-7:] == '.pickle':
+        pass
+    else:
+        fname = fname+'.pickle'
+
+    pickle_out = open(fname,"wb")
+    pickle.dump(experiment, pickle_out)
+    pickle_out.close()
+    
+    return
 
 def groups_lists(exp, spectra_name_list, spectra_name = 'mu sample'):
     grp_list = []
@@ -139,7 +199,9 @@ class Experiment:
         # Place to store all  analysis results from things like LCF/PCA
         self.analysis = {'LCF':{}, 'PCA':{}} 
          # Catch-all place for summary of results, needs work
-        self.summary = {}
+         # Update 1/28/2024 by ASH - Force empty XAS Spectra Files datafame
+        self.summary = {'XAS Spectra Files': pd.DataFrame(columns=['Time','TOS [s]', 'File Name', 'Padded Name', 'Path'])}
+        self.summary['XAS Spectra Files'].set_index('Time', inplace=True)
         
         return
     
@@ -176,6 +238,7 @@ class Experiment:
         
         return
         
+    
     def import_labview(self, file_name):
         '''
         Loads LabView data generated from the Co-ACCESS flow systems into the 
@@ -196,29 +259,7 @@ class Experiment:
         self.summary['LV Filename'] = file_name
         
         return
-    
-    def import_biologic(self, file_name):
-        '''
-        Loads Biologic potentilstate data into the process_params dictionary
-        of the experimental class
 
-        Parameters
-        ----------
-        file_name : STR of LIST
-             Single string or list of full path string(s) to Biologic file(s).
-
-        Returns
-        -------
-        None.
-
-        '''
-
-        if type(file_name) != list:
-            file_name = [file_name]
-        self.process_params['Biologic Data'] = process.ReadBiologicData(file_name)
-        self.summary['Biologic Filename'] = file_name
-        
-        return
     
     def import_process_df(self, process_df, name = 'process_data'):
         '''
@@ -239,7 +280,7 @@ class Experiment:
         '''
         
         # Check if name is already used
-        if name in self.process_params.keys:
+        if name in self.process_params.keys():
             
             print('Name of Process data alerady exists. Choose a new name.')
             
@@ -257,12 +298,179 @@ class Experiment:
         
     ##############################################
     
-    ##### Import Spectra Functions #####
+    #####      Import Spectra Functions      #####
     
     ##############################################
     
+    def import_spectrum(self, file, xas_data_structure, print_name = False):
+        #Added 1/27/2024 by ASH - goal is to creaate method to append filed to an empty or existing experiment
+        '''
+        Loads XAS data of a single spectrum into the spectra dictionary of the experiment class.
+        
+        Creates a time/file/path dataframe in the 'summary' dictionary of the
+        experiment class.
+
+        Parameters
+        ----------
+        fname : STR
+            Path to single spectrum file.
+        xas_data_structure : DICT
+            Dictionary of XAS data strcuture. Examples found in 
+            "BL specific XAS data structures.ipynb" in teh notebooks section
+            of the module.
+        print_name : BOOL, optional
+            Returns the name of each spectra uploaded to experiment object.
+            Used for troubleshooting. The default is False.
+
+        Returns
+        -------
+        None.
+
+        '''        
+        
+        # Get parameters from the data structure
+        
+        time_stamp = xas_data_structure['time stamp']
+        time_line = xas_data_structure['time on line']
+        time_format = xas_data_structure['time format']
+        padded = xas_data_structure['padded scan numbers']
+        is_QEXAFS = xas_data_structure['is QEXAFS']
+        col_names = xas_data_structure['column names']
+        energy_name = xas_data_structure['energy column']
+        
+        # Get the name of the scan without path or extension
+        fname = os.path.basename(file)[:-4]
+        
+        # Added padded zeros to scan if sample does not have any
+        if not padded:
+            scan_no = fcts.get_trailing_number(fname)
+            char = len(str(scan_no))
+            fname_padded = fname[:-char] + str(scan_no).zfill(4)
+        else:
+            fname_padded = fname
+        
+        # Display name if the flag is called
+        if print_name:
+            print(fname)
+
+        # Build the scan dictionary in the spectra dictionary
+        self.spectra[fname] = {}
+    
+        self.spectra[fname]['XAS Data Structure'] = xas_data_structure
+        
+        self.spectra[fname]['BL Data'] = read_ascii(file, labels=col_names)
+        
+        self.spectra[fname]['BL Data'].__name__ = fname
+        
+        # Determine the enregy values at the start/end of the dataset
+        Einit = self.spectra[fname]['BL Data'].__dict__[energy_name][0]
+        Efin = self.spectra[fname]['BL Data'].__dict__[energy_name][-1]
+        
+        # Invert the dataset if the energy values are not increasing
+        if Einit >= Efin:
+            for line in col_names:
+                self.spectra[fname]['BL Data'].__dict__[line] = np.flipud(self.spectra[fname]['BL Data'].__dict__[line])
+
+        
+        
+        # Updating the Summary File
+        if time_stamp:
+            
+            time_str = self.spectra[fname]['BL Data'].header[time_line]
+            
+            if not is_QEXAFS:
+                time = dt.strptime(time_str, time_format)
+
+            elif is_QEXAFS:
+                # To be checked with new QXAFS Data
+                time = dt.strptime(time_str, time_format)
+                micros = self.spectra[fname]['BL Data'].time[0] # to be checked
+                micros_to_date = datetime.timedelta(microseconds = micros)
+                time = time + micros_to_date
+
+            else:
+                pass
+       
+            temp_dict = {'Time': [time],
+                         'TOS [s]': [0],
+                         'File Name': [fname],
+                         'Padded Name': [fname_padded],
+                         'Path': [file]}
+            
+            temp_df = pd.DataFrame(temp_dict)
+            temp_df.set_index('Time', inplace = True)
+            
+        else:
+            temp_dict = {'Time': [dt.time()],
+                         'TOS [s]': [0],
+                         'File Name': [fname],
+                         'Padded Name': [fname_padded],
+                         'Path': [file]}
+            
+            temp_df = pd.DataFrame(temp_dict)
+            temp_df.set_index('Time', inplace = True)
+                        
+        self.summary['XAS Spectra Files'] = pd.concat([self.summary['XAS Spectra Files'], temp_df], axis = 0, ignore_index=False)
+                
+        # Add Time to Sample
+        self.spectra[fname]['Time'] = time
+        
+        # Rearrange Summary File and Spectra Dictionary. Add TOS if appropriate
+        if time_stamp:
+            self.summary['XAS Spectra Files'].sort_index(axis=0, inplace=True)
+            self.spectra = {i: self.spectra[i] for i in self.summary['XAS Spectra Files']['File Name'].values}
+            
+            # Determine the time elapses since the first file in seconds
+            elapsed_time = []
+            for line in self.summary['XAS Spectra Files'].index.values:
+                temp_TOS = line-self.summary['XAS Spectra Files'].index.values[0]
+                temp_TOS = temp_TOS / np.timedelta64(1, 's')
+                elapsed_time.append(temp_TOS)
+            self.summary['XAS Spectra Files']['TOS [s]'] = elapsed_time
+            
+            
+        else:
+            self.summary['XAS Spectra Files'].sort_values(by = 'Padded Name', ignore_index = True, inplace = True)
+            self.spectra = {i: self.spectra[i] for i in self.summary['XAS Spectra Files']['File Name'].values}
+            
+        
+        return
+    
+    def import_spectra(self, xas_data_directory, xas_data_structure, ext = '.txt', print_name = False):
+        '''
+        Function to import multiple spectra from a directory (or subfolders in a directory) using the simplified import_spectrum fucntion
+
+        Parameters
+        ----------
+        xas_data_directory : STR
+            Path to XAS spectra to be imported.
+        xas_data_structure : DICT
+            Dictionary of data structure to be loaded into the experiment with each file.
+        ext : STR, optional
+            extension of the spectra files for importing. The default is '.txt'.
+        print_name : TYPE, optional
+            Prints the spectra name after upload to help with debugging. The default is False.
+
+        Returns
+        -------
+        None.
+
+        '''
+        
+        # Use glob2 to get a list of all files in files_directory
+        files = glob.glob(xas_data_directory+f'/**/*{ext}', recursive=True)
+        
+        for line in files:
+        
+            self.import_spectrum(line, xas_data_structure, print_name = print_name)
+        
+        return
+    
+    
     def import_spectra_data(self, xas_data_directory, xas_data_structure, print_name = False):
         '''
+        Depreciated. See import_spectra or import_spectrum.
+        
         Loads XAS data into the spectra dictionary of the experiment class.
         
         Creates a time/file/path dataframe in the 'summary' dictionary of the
@@ -284,52 +492,13 @@ class Experiment:
         -------
         None.
 
-        '''        
-        time_stamp = xas_data_structure['time stamp']
-        time_line = xas_data_structure['time on line']
-        time_format = xas_data_structure['time format']
-        padded = xas_data_structure['padded scan numbers']
-        is_QEXAFS = xas_data_structure['is QEXAFS']
+        '''  
         
+        print('Depreciated, use import_spectra for multiple files, or import_spectrum for a single file')
         
-        self.summary['XAS Spectra Files'] = xfcts.CXAS_Sorted(xas_data_directory, time_stamp = time_stamp, time_line = time_line, time_format = time_format, padded = padded, is_QEXAFS = is_QEXAFS)  
-        
-        
-        
-        for index, row in self.summary['XAS Spectra Files'].iterrows():
-            
-            filename = row['File Name']
-            file_path = row['Path']
-            
-            if print_name:
-                print(filename)
-
-            self.spectra[filename] = {}
-        
-            self.spectra[filename]['XAS Data Structure'] = xas_data_structure
-            
-            self.spectra[filename]['Time'] = index
-            
-            col_names = self.spectra[filename]['XAS Data Structure']['column names']
-            
-            energy_name = xas_data_structure['energy column']
-            
-            self.spectra[filename]['BL Data'] = read_ascii(file_path, labels=col_names)
-            
-            self.spectra[filename]['BL Data'].__name__ = filename
-                        
-            # Determine the enregy values at the start/end of the dataset
-            Einit = self.spectra[filename]['BL Data'].__dict__[energy_name][0]
-            Efin = self.spectra[filename]['BL Data'].__dict__[energy_name][-1]
-            
-            # Invert the dataset if the energy values are not increasing
-            if Einit >= Efin:
-                for line in col_names:
-                    self.spectra[filename]['BL Data'].__dict__[line] = np.flipud(self.spectra[filename]['BL Data'].__dict__[line])
-
-            
         return
     
+       
     #################################
     
     ##### Correlation Functions #####
@@ -360,75 +529,6 @@ class Experiment:
     ##### Spectra Interrogation Functions #####
     
     ###########################################
-    
-    def organize_RawData(self, remove_duplicates = True, remove_nan_inf = True, remove_zeros = True):
-        '''
-        
-
-        Parameters
-        ----------
-        remove_duplicates : TYPE, optional
-            DESCRIPTION. The default is True.
-        remove_nan_inf : TYPE, optional
-            DESCRIPTION. The default is True.
-        remove_zeros : TYPE, optional
-            DESCRIPTION. The default is True.
-
-        Returns
-        -------
-        None.
-
-        '''
-        
-        if remove_duplicates:
-            E_pts = []
-            for key in self.spectra.keys():
-                Temp_E_Pts1 = len(self.spectra[key]['BL Data'].Energy)
-                values, index = np.unique(self.spectra[key]['BL Data'].Energy, return_index=True)
-                for line in self.spectra[key]['BL Data'].array_labels:
-                    self.spectra[key]['BL Data'].__dict__[line] = self.spectra[key]['BL Data'].__dict__[line][index]
-                Temp_E_Pts2 = len(self.spectra[key]['BL Data'].Energy)
-                E_pts.append([Temp_E_Pts1, Temp_E_Pts2])
-                    
-            E_pts_arr = np.asarray(E_pts)
-            print('Duplicate data points removed')
-            print(f'Range of data points per raw spectra: {E_pts_arr[:,0].min()}-{E_pts_arr[:,0].max()}')
-            print(f'Range of data points per duplicates removed spectra: {E_pts_arr[:,1].min()}-{E_pts_arr[:,1].max()}')
-
-
-        if remove_nan_inf:
-            naninf_pts = []
-            for key in self.spectra.keys():
-                Temp_naninf_Pts1 = len(self.spectra[key]['BL Data'].Energy)
-                for line in self.spectra[key]['BL Data'].array_labels:
-                    f = self.spectra[key]['BL Data'].__dict__[line]
-                    index = [i for i, arr in enumerate(f) if not np.isfinite(arr).all()]
-                    for line in self.spectra[key]['BL Data'].array_labels:
-                        self.spectra[key]['BL Data'].__dict__[line] = self.spectra[key]['BL Data'].__dict__[line][index]
-                    Temp_naninf_Pts2 = len(self.spectra[key]['BL Data'].Energy)
-                naninf_pts.append([Temp_naninf_Pts1, Temp_naninf_Pts2])
-            
-            naninf_pts_arr = np.asarray(naninf_pts)
-            print('Zero data points removed')
-            print(f'Range of data points per pre-zero spectra: {naninf_pts_arr[:,0].min()}-{naninf_pts_arr[:,0].max()}')
-            print(f'Range of data points per zero removed spectra: {naninf_pts_arr[:,1].min()}-{naninf_pts_arr[:,1].max()}')
-        
-        if remove_zeros:
-            Z_pts = []
-            for key in self.spectra.keys():
-                Temp_Z_Pts1 = len(self.spectra[key]['BL Data'].Energy)
-                for line in self.spectra[key]['BL Data'].array_labels:
-                    index = np.nonzero(self.spectra[key]['BL Data'].__dict__[line])
-                    for line in self.spectra[key]['BL Data'].array_labels:
-                        self.spectra[key]['BL Data'].__dict__[line] = self.spectra[key]['BL Data'].__dict__[line][index]
-                    Temp_Z_Pts2 = len(self.spectra[key]['BL Data'].Energy)
-                Z_pts.append([Temp_Z_Pts1, Temp_Z_Pts2])
-            
-            Z_pts_arr = np.asarray(Z_pts)
-            print('Zero data points removed')
-            print(f'Range of data points per pre-zero spectra: {Z_pts_arr[:,0].min()}-{Z_pts_arr[:,0].max()}')
-            print(f'Range of data points per zero removed spectra: {Z_pts_arr[:,1].min()}-{Z_pts_arr[:,1].max()}')
-        
     
     def data_length_screen(self, deviations = 3, print_summary = True):
         # Extract the number of data points and the starting and ending E value in each spectrum for interrogation
@@ -565,7 +665,7 @@ class Experiment:
                     plt.legend()
             
         # Returns df of bad spectra with their edge steps
-        return problem_spectra
+        return problem_spectra, edge_step_df # edge_step_df is new, see if this breaks somewhere else (ASH 1/29/2024)
     
     def remove_bad_spectra(self, spectra_list, test_removal = True):
         '''
@@ -701,6 +801,247 @@ class Experiment:
             
         return df
     
+    ###############################################
+    
+    ##### Single-Spectra Calcualtion Functions #####
+    
+    ###############################################
+    
+    def calculate_spectrum(self, scan, sample_spectra = True, ref_spectra = True):
+        '''
+        
+        Calculate the absorption spectrum for the sample (and reference)
+
+        Parameters
+        ----------
+        scan : STR
+            Name of a scan to calculate the absorption spectrum of
+        sample_spectra : BOOL, optional
+            Flag to determine if the absorption spectrum of the sample is calcualted.
+            The default is True.
+        ref_spectra : BOOL, optional
+            Flag to determine if the absorption spectrum of the reference is calcualted.
+            The default is True.
+
+        Returns
+        -------
+        None.
+
+        '''
+        
+        energy_col = self.spectra[scan]['XAS Data Structure']['energy column']
+        
+        self.spectra[scan]['Absorption Spectra'] = {}
+        
+        if sample_spectra:
+            # Define signals to use to calc mu sample
+            sample_numerator = self.spectra[scan]['XAS Data Structure']['sample numerator']
+            sample_denominator = self.spectra[scan]['XAS Data Structure']['sample denominator']
+            sample_ln = self.spectra[scan]['XAS Data Structure']['sample ln']
+            sample_invert = self.spectra[scan]['XAS Data Structure']['sample invert']
+            
+            # Extract data from signal columns
+            photon_energy = self.spectra[scan]['BL Data'][energy_col]
+            
+            # Start update 4/17/2024
+            #samp_numerator = self.spectra[scan]['BL Data'].__dict__[sample_numerator]
+            #samp_denominator = self.spectra[scan]['BL Data'].__dict__[sample_denominator]
+            
+            # Update 4/17/2024 to include multi-channle numerators and denomunators. Check to see if there are multiple channels to be added (e.g multi-pixel Ge detetor) and sum them, otherwise use single dataset
+            if isinstance(sample_numerator, list):
+                for i in range(len(sample_numerator)):
+                    if i == 0:
+                        samp_numerator = self.spectra[scan]['BL Data'].__dict__[sample_numerator[i]]
+                    else:
+                        samp_numerator = np.sum([samp_numerator, self.spectra[scan]['BL Data'].__dict__[sample_numerator[i]]], axis = 0)
+            else:
+                samp_numerator = self.spectra[scan]['BL Data'].__dict__[sample_numerator]
+            
+            # Update 4/17/2024 to include multi-channle numerators and denomunators. Check to see if there are multiple channels to be added (e.g multi-pixel Ge detetor) and sum them, otherwise use single dataset
+            if isinstance(sample_denominator, list):
+                for i in range(len(sample_denominator)):
+                    if i == 0:
+                        samp_denominator = self.spectra[scan]['BL Data'].__dict__[sample_denominator[i]]
+                    else:
+                        samp_denominator = np.sum([samp_denominator, self.spectra[scan]['BL Data'].__dict__[sample_denominator[i]]], axis = 0)
+            else:
+                samp_denominator = self.spectra[scan]['BL Data'].__dict__[sample_denominator]
+
+            # End update 4/17/2024
+            
+            samp_log=sample_ln
+            samp_flip = sample_invert
+            
+            # Calcualte Absorption Coefficient 
+            self.spectra[scan]['Absorption Spectra']['mu Sample'] = xfcts.create_larch_spectrum(photon_energy, samp_numerator, samp_denominator, log=samp_log, flip = samp_flip, name = scan)
+        
+        if ref_spectra:
+            # Define signals to use to calc mu ref
+            reference_numerator = self.spectra[scan]['XAS Data Structure']['reference numerator']
+            reference_denominator = self.spectra[scan]['XAS Data Structure']['reference denominator']
+            reference_ln = self.spectra[scan]['XAS Data Structure']['reference ln']
+            reference_invert = self.spectra[scan]['XAS Data Structure']['reference invert'] 
+  
+            # Extract data from signal columns
+            photon_energy = self.spectra[scan]['BL Data'][energy_col]
+            
+            # Start update 4/17/2024
+            #ref_numerator = self.spectra[scan]['BL Data'].__dict__[reference_numerator]
+            #ref_denominator = self.spectra[scan]['BL Data'].__dict__[reference_denominator]
+            
+            # Update 4/17/2024 to include multi-channle numerators and denomunators. Check to see if there are multiple channels to be added (e.g multi-pixel Ge detetor) and sum them, otherwise use single dataset
+            if isinstance(reference_numerator, list):
+                for i in range(len(reference_numerator)):
+                    if i == 0:
+                        ref_numerator = self.spectra[scan]['BL Data'].__dict__[reference_numerator[i]]
+                    else:
+                        ref_numerator = ref_numerator + self.spectra[scan]['BL Data'].__dict__[reference_numerator[i]]
+            else:
+                ref_numerator = self.spectra[scan]['BL Data'].__dict__[reference_numerator]
+            
+            # Update 4/17/2024 to include multi-channle numerators and denomunators. Check to see if there are multiple channels to be added (e.g multi-pixel Ge detetor) and sum them, otherwise use single dataset
+            if isinstance(reference_denominator, list):
+                for i in range(len(reference_denominator)):
+                    if i == 0:
+                        ref_denominator = self.spectra[scan]['BL Data'].__dict__[reference_denominator[i]]
+                    else:
+                        ref_denominator = ref_denominator + self.spectra[scan]['BL Data'].__dict__[reference_denominator[i]]
+            else:
+                ref_denominator = self.spectra[scan]['BL Data'].__dict__[reference_denominator]
+
+            # End update 4/17/2024            
+
+            ref_log = reference_ln
+            ref_flip = reference_invert
+            
+            # Calcualte Absorption Coefficient
+            self.spectra[scan]['Absorption Spectra']['mu Reference'] = xfcts.create_larch_spectrum(photon_energy, ref_numerator, ref_denominator, log=ref_log, flip = ref_flip, name = scan+'_ref')
+                
+        return
+    
+    def organize_RawData_spectrum(self, scan, remove_duplicates = True, remove_nan_inf = True, remove_zeros = True, feedback = True):
+        '''
+        Cleans up a spectrum's data due to high speed collection issues.
+        duplicates: removes duplicate energy points caused by encoder jitter
+        nan_inf: removes NAN and INF cells due to exporting/recording issues
+        zeros: removes any zeros in the datafile
+
+        Parameters
+        ----------
+        scan : str
+            Scan Name.
+        remove_duplicates : BOOl, optional
+            removes duplicate values from dataset. The default is True.
+        remove_nan_inf : BOOL, optional
+            removes nan and inf values from dataset. The default is True.
+        remove_zeros : BOOL, optional
+            removes zeros from the dataset. The default is True.
+        feedback : BOOL, optional
+            if true, will print results to monitor. The default is True.
+
+        Returns
+        -------
+        list
+            Starting/ending data points prior to duplicate removal.
+        list
+            Starting/ending data points prior to NaN/inf removal.
+        list
+            Starting/ending data points prior to zero removal.
+
+        '''
+        
+        energy_col = self.spectra[scan]['XAS Data Structure']['energy column']
+        
+        # Placeholder values if remove funciton is not called
+        E_Pts1 = len(self.spectra[scan]['BL Data'][energy_col])
+        E_Pts2 = E_Pts1
+        naninf_Pts1 = E_Pts1
+        naninf_Pts2 = E_Pts1
+        Z_Pts1 = E_Pts1
+        Z_Pts2 = E_Pts1
+        
+        
+        if remove_duplicates:
+
+            # Lenght of dateset - uses lenght of energy column
+            E_Pts1 = len(self.spectra[scan]['BL Data'][energy_col])
+            
+            # Finds all unique values and indicies
+            values, index = np.unique(self.spectra[scan]['BL Data'][energy_col], return_index=True)
+            
+            # Keep only index values of unique data points
+            for line in self.spectra[scan]['BL Data'].array_labels:
+                self.spectra[scan]['BL Data'].__dict__[line] = self.spectra[scan]['BL Data'].__dict__[line][index]
+            
+            # Lenght of new dataset wiht duplicates removed
+            E_Pts2 = len(self.spectra[scan]['BL Data'][energy_col])
+            
+            if feedback:
+                print(f'Duplicate data points removed for {scan}')
+                print(f'Number of datapoints removed: {E_Pts1-E_Pts2}')
+            
+
+        if remove_nan_inf:
+            
+            print('Remove Zero still in development')
+            
+            
+        if remove_zeros:
+            
+          print('Remove Zero still in development')
+                
+                
+        return [E_Pts1, E_Pts2], [naninf_Pts1, naninf_Pts2], [Z_Pts1, Z_Pts2]
+    
+    
+    def load_params_spectrum(self, scan, spectra_name, param_dict):
+        '''
+        loads paramters from dictionary using key-value into a given scans specific spectra (sample or ref) in experiment object
+
+        Parameters
+        ----------
+        scan : TYPE
+            DESCRIPTION.
+        spectra_name : STR
+            Spectra name, either 'mu Sample' or 'mu Reference'.
+        param_dict : DICT
+            Dictionary of key-values for paramters to be used in teh larch group for performing XAS calculations.
+
+        Returns
+        -------
+        None.
+
+        '''
+        
+        # Added 1/29/2024 by ASH - allows for working on a given scan in dataset, needed for real time analysis
+                
+        for key in param_dict.keys():
+            self.spectra[scan]['Absorption Spectra'][spectra_name].__dict__[key] = param_dict[key]
+            
+        return
+    
+    def normalize_spectrum(self, scan, spectra_name):        
+        '''
+        Normalizes a single scan (sample or reference spectrum) in the experimentclass
+
+        Parameters
+        ----------
+        scan : STR
+            Name of scan to perform normalization on.
+        spectra_name : STR
+            "mu Sample" or "mu Reference" - which spectra in the scan should be normalized.
+
+        Returns
+        -------
+        None.
+
+        '''
+        # Added 1/29/2024 by ASH - allows for working on a single scan, needed for real-time analysis
+                
+        xfcts.normalize_spectrum(self.spectra[scan]['Absorption Spectra'][spectra_name])
+
+        return
+    
     
     ###############################################
     
@@ -710,49 +1051,108 @@ class Experiment:
     
     def calculate_spectra(self, sample_spectra = True, ref_spectra = True):
         '''
-        docstring TBD
+        Calculates the absorption spectra of every scan (and their reference channel)
+
+        Parameters
+        ----------
+        scan : STR
+            Name of a scan to calculate the absorption spectrum of
+        sample_spectra : BOOL, optional
+            Flag to determine if the absorption spectrum of the sample is calcualted.
+            The default is True.
+        ref_spectra : BOOL, optional
+            Flag to determine if the absorption spectrum of the reference is calcualted.
+            The default is True.
+
+        Returns
+        -------
+        None.
+
         '''
+        # 1/28/2024 ASH - created to try to integrate real time data analysis
         
         for key in self.spectra.keys():
             
-            self.spectra[key]['Absorption Spectra'] = {}
+            self.calculate_spectrum(key, sample_spectra = sample_spectra, ref_spectra = ref_spectra)
             
-            if sample_spectra:
-                # Define signals to use to calc mu sample
-                sample_numerator = self.spectra[key]['XAS Data Structure']['sample numerator']
-                sample_denominator = self.spectra[key]['XAS Data Structure']['sample denominator']
-                sample_ln = self.spectra[key]['XAS Data Structure']['sample ln']
-                sample_invert = self.spectra[key]['XAS Data Structure']['sample invert']
-                
-                # Extract data from signal columns
-                photon_energy = self.spectra[key]['BL Data'].Energy
-                samp_numerator = self.spectra[key]['BL Data'].__dict__[sample_numerator]
-                samp_denominator = self.spectra[key]['BL Data'].__dict__[sample_denominator]
-                samp_log=sample_ln
-                samp_flip = sample_invert
-                
-                # Calcualte Absorption Coefficient 
-                self.spectra[key]['Absorption Spectra']['mu Sample'] = xfcts.create_larch_spectrum(photon_energy, samp_numerator, samp_denominator, log=samp_log, flip = samp_flip, name = key)
-            
-            if ref_spectra:
-                # Define signals to use to calc mu ref
-                reference_numerator = self.spectra[key]['XAS Data Structure']['reference numerator']
-                reference_denominator = self.spectra[key]['XAS Data Structure']['reference denominator']
-                reference_ln = self.spectra[key]['XAS Data Structure']['reference ln']
-                reference_invert = self.spectra[key]['XAS Data Structure']['reference invert'] 
-  
-                # Extract data from signal columns
-                photon_energy = self.spectra[key]['BL Data'].Energy
-                ref_numerator = self.spectra[key]['BL Data'].__dict__[reference_numerator]
-                ref_denominator = self.spectra[key]['BL Data'].__dict__[reference_denominator]
-                ref_log = reference_ln
-                ref_flip = reference_invert
-                
-                # Calcualte Absorption Coefficient
-                self.spectra[key]['Absorption Spectra']['mu Reference'] = xfcts.create_larch_spectrum(photon_energy, ref_numerator, ref_denominator, log=ref_log, flip = ref_flip, name = key+'_ref')
-                
-        return    
+        return
+       
 
+    def organize_RawData(self, remove_duplicates = True, remove_nan_inf = True, remove_zeros = True, feedback = False, summary = True):
+        '''
+        
+
+        Parameters
+        ----------
+        remove_duplicates : TYPE, optional
+            DESCRIPTION. The default is True.
+        remove_nan_inf : TYPE, optional
+            DESCRIPTION. The default is True.
+        remove_zeros : TYPE, optional
+            DESCRIPTION. The default is True.
+        feedback : TYPE, optional
+            DESCRIPTION. The default is True.
+        summary : TYPE, optional
+            DESCRIPTION. The default is True.
+
+        Returns
+        -------
+        None.
+
+        '''
+        
+        # 1/28/2024 ASH - created to try to integrate real time data analysis 
+        
+        # Empty Lists for Summarry
+        E_list = [] # Energy
+        N_list = [] # NaN/inf
+        Z_list = [] # Zeros
+        
+        for key in self.spectra.keys():
+            
+            E, N, Z = self.organize_RawData_spectrum(key, remove_duplicates = remove_duplicates, remove_nan_inf = remove_nan_inf, remove_zeros = remove_zeros, feedback = feedback)
+            
+            E_list.append(E)
+            N_list.append(N)
+            Z_list.append(Z)
+        
+        
+        if summary:
+            E_list = np.asarray(E_list)
+            N_list = np.asarray(N_list)
+            Z_list = np.asarray(Z_list)
+            print('Data Organized')
+            print(f'Range of data points per raw spectra: {E_list[:,0].min()}-{E_list[:,0].max()}')
+            print(f'Range of data points after duplicates removed: {E_list[:,1].min()}-{E_list[:,1].max()}')
+            print(f'Range of data points after NaN/inf removed: {N_list[:,1].min()}-{N_list[:,1].max()}')
+            print(f'Range of data points after zeros removed: {Z_list[:,1].min()}-{Z_list[:,1].max()}')
+
+        
+        return
+    
+    
+    def normalize_spectra(self, spectra_name):
+        '''
+        Normalzies all spectra of a type (sample/reference) in the experimental object.
+        Uses normalization paramters in each scan/spectra group.
+
+        Parameters
+        ----------
+        spectra_name : STR
+            "mu Sample" or "mu Reference" - which spectra in the scan should be normalized.
+
+        Returns
+        -------
+        None.
+
+        '''
+        # Added 1/29/2024 by ASH - allows for the single spectrum workflow fucniton
+        
+        for key in self.spectra.keys():
+            self.normalize_spectrum(key, spectra_name)
+            
+        return
+    
     
     def interpolate_spectra(self, start, stop, step, x_axis = 'Energy', sample = 'mu Sample'):
         '''
@@ -927,7 +1327,10 @@ class Experiment:
         return
 
         
-    def normalize_spectra(self, spectra_name):        
+
+    
+    
+    def normalize_spectra_original(self, spectra_name):        
         '''
         FILL ME IN
         spectra
@@ -937,6 +1340,7 @@ class Experiment:
         None.
 
         '''
+        # 1/29/2024 ASH - original function, attempting to replace with new one for real-time work flow
                 
         for key in self.spectra.keys():
             xfcts.normalize_spectrum(self.spectra[key]['Absorption Spectra'][spectra_name])
@@ -1002,10 +1406,12 @@ class Experiment:
         None.
 
         '''
+        # 1/29/2024 ASH - updated to allow for implementaion of the scan based fucntion for real time analysis
         
-        for key1 in self.spectra.keys():
-            for key2 in param_dict.keys():
-                self.spectra[key1]['Absorption Spectra'][spectra_name].__dict__[key2] = param_dict[key2]
+        for key in self.spectra.keys():
+            self.load_params_spectrum(key, spectra_name, param_dict)
+            
+        return
 
     def remove_BLData(self):
         '''
