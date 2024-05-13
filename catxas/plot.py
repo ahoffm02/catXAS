@@ -568,3 +568,101 @@ def plot_FT(larch_groups, Rmin = 0, Rmax = 6, magnitude = True, imaginary = True
 
             ax1.set_ylim([-1.25*FT_max, 1.25*FT_max])
             ax1.set_ylabel(f'k^{larch_groups[i].kweight} weighted X(R)')
+
+
+def plot_NormXANES(larch_group):
+        
+    # Set up plot size and gride
+    width = 12
+    height = width/3
+    
+    ncols = 3
+    nrows = 1
+    
+    # Define Figure:
+    fig1 = plt.figure(constrained_layout=True, figsize = (width, height))
+    spec1 = gridspec.GridSpec(ncols = ncols, nrows = nrows, figure = fig1)
+    
+    # Define common parameters 
+    x = larch_group.energy + larch_group.delE #photon energy
+    e0 = larch_group.e0  #Edge Energy
+
+    pre1 = e0+larch_group.pre1
+    pre2 = e0+larch_group.pre2
+
+    norm1 = e0+larch_group.norm1
+    norm2 = e0+larch_group.norm2
+    
+    # Subplot #1 - Norm XANES
+    
+    ax1 = fig1.add_subplot(spec1[0])
+    
+    ax1.set_xlabel('Photon Eenrg [eV]')
+    ax1.set_ylabel('Norm. μ(E)x')
+    
+    # Subplot #2 - Pre-edge Fit
+    
+    ax2 = fig1.add_subplot(spec1[1])
+    
+    ax2.set_xlabel('Photon Eenrg [eV]')
+    ax2.set_ylabel('μ(E)x')
+    
+    # Subplot #3 - Post-edge Fit
+    
+    ax3 = fig1.add_subplot(spec1[2])
+    
+    ax3.set_xlabel('Photon Eenrg [eV]')
+    ax3.set_ylabel('μ(E)x')
+
+    # Add Data
+
+    # Subplot #1 - Norm XANES
+
+    y = larch_group.flat
+
+    ax1.plot(x,y)
+
+    ax1.set_xlim(e0-100, e0+150)
+
+    ax1.set_title('Norm. μ(E)x')
+
+    # Subplot #2 - Pre-edge Fit
+
+    y1 = larch_group.mu
+
+    y2 = larch_group.pre_edge
+
+    ax2.plot(x,y1, c = 'k')
+    ax2.plot(x,y2, c = 'r')
+    
+    ax2.axvline(pre1, c = 'b', linestyle = 'dotted')
+    ax2.axvline(pre2, c = 'b', linestyle = 'dotted')
+    
+    ax2.set_xlim(min(x), e0+10)
+
+    ymin = min(y1)
+    ymax  = max(y1)
+
+    ax2.set_ylim(ymin-abs(ymin)*0.05, ymin+abs((ymax-ymin))/3)
+
+    ax2.set_title('Pre-edge')
+
+    # vertical lines here!!!
+
+    # Subplot #2 - Pre-edge Fit
+
+    y1 = larch_group.mu
+
+    y2 = larch_group.post_edge
+
+    ax3.plot(x,y1, c = 'k')
+    ax3.plot(x,y2, c = 'r')
+
+    ax3.axvline(norm1, color = 'b', linestyle = 'dotted')
+    ax3.axvline(norm2, color = 'b', linestyle = 'dotted')
+
+    ax3.set_xlim(e0-50,max(x)+50)
+
+    ax3.set_title('Post-edge')
+                        
+    return   

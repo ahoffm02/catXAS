@@ -840,6 +840,11 @@ class Experiment:
             sample_ln = self.spectra[scan]['XAS Data Structure']['sample ln']
             sample_invert = self.spectra[scan]['XAS Data Structure']['sample invert']
             
+            # Diagnostic added 5/7/2024 to make sure it recognizes multi-channel numerators and denominators
+            
+            print(f'Channels in Numerator: {sample_numerator}')
+            print(f'Channels in Denominator: {sample_denominator} ')
+            
             # Extract data from signal columns
             photon_energy = self.spectra[scan]['BL Data'][energy_col]
             
@@ -850,6 +855,10 @@ class Experiment:
             # Update 4/17/2024 to include multi-channle numerators and denomunators. Check to see if there are multiple channels to be added (e.g multi-pixel Ge detetor) and sum them, otherwise use single dataset
             if isinstance(sample_numerator, list):
                 for i in range(len(sample_numerator)):
+                    
+                    # Added diagnostic 5/7/24
+                    print(sample_numerator[i])
+                    
                     if i == 0:
                         samp_numerator = self.spectra[scan]['BL Data'].__dict__[sample_numerator[i]]
                     else:
