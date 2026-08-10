@@ -29,8 +29,4 @@ This is a modified set of installation notes from the xraylarch source (https://
   	    
 5.	install X-ray Larch:
 
-<<<<<<< HEAD
-  	    pip install xraylarch
-=======
-  	    pip install xraylarch
->>>>>>> cd222ef933398f751dd050abe811c1d5fa231f14
+	    pip install xraylarch
